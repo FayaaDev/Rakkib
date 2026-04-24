@@ -92,6 +92,8 @@ Use these markers to replace or append exactly one managed block:
 
 Record clean-machine validation runs in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
 
+Do not call the repo public-ready until the required clean-machine runs are recorded there as passing.
+
 ## Success Condition
 
 On a fresh machine, an agent should be able to use only this repo plus the user's answers to bring up:

@@ -26,6 +26,7 @@ arch: amd64
 docker_installed: true
 data_root: /srv
 docker_net: caddy_net
+backup_dir: /srv/backups
 host_gateway: 172.18.0.1
 server_name: myserver
 domain: example.com
@@ -60,6 +61,61 @@ Derived value rules:
   - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
   - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
 - Render templates only after every placeholder they need has either a collected value or a deterministic derived value recorded in `.fss-state.yaml`.
+
+## Render Context Rules
+
+Before rendering any template, flatten `.fss-state.yaml` into a direct placeholder map. Do not guess names and do not render from nested keys implicitly.
+
+Required direct mappings:
+
+- `server_name` -> `{{SERVER_NAME}}`
+- `domain` -> `{{DOMAIN}}`
+- `admin_user` -> `{{ADMIN_USER}}`
+- `admin_email` -> `{{ADMIN_EMAIL}}`
+- `lan_ip` -> `{{LAN_IP}}`
+- `tz` -> `{{TZ}}`
+- `data_root` -> `{{DATA_ROOT}}`
+- `docker_net` -> `{{DOCKER_NET}}`
+- `host_gateway` -> `{{HOST_GATEWAY}}`
+- `backup_dir` -> `{{BACKUP_DIR}}`
+- `claw_gateway_port` -> `{{CLAW_GATEWAY_PORT}}`
+- `cloudflared_metrics_port` -> `{{CLOUDFLARED_METRICS_PORT}}`
+
+Nested mappings:
+
+- `cloudflare.tunnel_uuid` -> `{{TUNNEL_UUID}}`
+- `cloudflare.ssh_subdomain` -> `{{SSH_SUBDOMAIN}}`
+- `cloudflare.tunnel_creds_host_path` -> `{{TUNNEL_CREDS_HOST_PATH}}`
+- `cloudflare.tunnel_creds_container_path` -> `{{TUNNEL_CREDS_CONTAINER_PATH}}`
+- `subdomains.nocodb` -> `{{NOCODB_SUBDOMAIN}}`
+- if `n8n` is selected: `subdomains.n8n` -> `{{N8N_SUBDOMAIN}}`
+- if `dbhub` is selected: `subdomains.dbhub` -> `{{DBHUB_SUBDOMAIN}}`
+- if `openclaw` is selected: `subdomains.claw` -> `{{OPENCLAW_SUBDOMAIN}}`
+
+Secrets mapping:
+
+- Every key under `secrets.values` maps directly to the same placeholder name.
+- Example: `secrets.values.POSTGRES_PASSWORD` -> `{{POSTGRES_PASSWORD}}`
+- Example: `secrets.values.N8N_ENCRYPTION_KEY` -> `{{N8N_ENCRYPTION_KEY}}`
+
+Derived multiline placeholders:
+
+- Build `{{SERVICE_SUMMARY_LINES}}` before rendering `templates/agent-memory/SERVER_README.md.tmpl`.
+- It must always include these lines:
+  - `- Caddy`
+  - `- Cloudflared`
+  - `- PostgreSQL`
+  - `- NocoDB at https://{{NOCODB_SUBDOMAIN}}.{{DOMAIN}}`
+- Append optional lines only for selected services:
+  - `- n8n at https://{{N8N_SUBDOMAIN}}.{{DOMAIN}}`
+  - `- DBHub at https://{{DBHUB_SUBDOMAIN}}.{{DOMAIN}}`
+  - `- OpenClaw at https://{{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}`
+
+Rendering guardrails:
+
+- Do not render templates for unselected optional services.
+- Do not leave unresolved placeholders in rendered target-machine files.
+- If a required placeholder is missing from the render context, stop and fix the state before continuing.
 
 ## Phase Order
 
@@ -108,6 +164,8 @@ After confirmation, run these step files in order:
 5. When a file already exists on the target machine, read it first and preserve any values that must not rotate.
 6. For Cloudflared, always normalize the credentials JSON to `{{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json` on the host and render the in-container path `/home/nonroot/.cloudflared/<tunnel_uuid>.json` into `config.yml`.
 7. For SSH over Cloudflare, always use the recorded custom subdomain value rather than assuming `ssh`.
+8. A local host `cloudflared` CLI is required for tunnel login, creation, and DNS routing. The container image alone is not enough for Step 40.
+9. If `secrets.mode` is `generate`, generate each missing secret immediately before the first step that needs it, then write it back into `.fss-state.yaml` before rendering any file that uses it.
 
 ## Platform Rules
 

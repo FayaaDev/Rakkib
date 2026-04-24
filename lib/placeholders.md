@@ -14,6 +14,7 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 - `{{DOCKER_NET}}`: shared Docker network name, default `caddy_net`
 - `{{HOST_GATEWAY}}`: host address reachable from containers, `172.18.0.1` on Linux or `host.docker.internal` on Mac
 - `{{BACKUP_DIR}}`: default `{{DATA_ROOT}}/backups`
+- `{{SERVICE_SUMMARY_LINES}}`: multiline service summary built from the required services plus selected optional services before rendering the generated server README
 
 ## Cloudflare
 
@@ -39,3 +40,5 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 ## Rule
 
 If a template introduces a new placeholder, add it here in the same change.
+
+Render context rule: nested state values must be flattened into these placeholder names before substitution. Do not assume that `subdomains.*` or `secrets.values.*` keys are available to templates directly.

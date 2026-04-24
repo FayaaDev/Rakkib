@@ -4,13 +4,17 @@ Deploy PostgreSQL and create one database/user pair per selected service.
 
 ## Actions
 
-1. Render `templates/docker/postgres/.env.example` into `{{DATA_ROOT}}/docker/postgres/.env` with a real `POSTGRES_PASSWORD`.
-2. Create `{{DATA_ROOT}}/docker/postgres/init-scripts/init-services.sql`.
-3. Always create the NocoDB database and role.
-4. If `n8n` is selected, create the n8n database and role.
-5. If `dbhub` is selected, no separate app database is required unless the user wants one; DBHub connects to Postgres directly.
-6. Render `templates/docker/postgres/docker-compose.yml.tmpl` into `{{DATA_ROOT}}/docker/postgres/docker-compose.yml`.
-7. Start PostgreSQL with `docker compose up -d` from `{{DATA_ROOT}}/docker/postgres`.
+1. If `secrets.mode` is `generate`, generate and record any missing database secrets before rendering:
+   - `POSTGRES_PASSWORD`
+   - `NOCODB_DB_PASS`
+   - `N8N_DB_PASS` if `n8n` is selected
+2. Render `templates/docker/postgres/.env.example` into `{{DATA_ROOT}}/docker/postgres/.env` with the recorded `POSTGRES_PASSWORD`.
+3. Create `{{DATA_ROOT}}/docker/postgres/init-scripts/init-services.sql`.
+4. Always create the NocoDB database and role.
+5. If `n8n` is selected, create the n8n database and role.
+6. If `dbhub` is selected, no separate app database is required unless the user wants one; DBHub connects to Postgres directly.
+7. Render `templates/docker/postgres/docker-compose.yml.tmpl` into `{{DATA_ROOT}}/docker/postgres/docker-compose.yml`.
+8. Start PostgreSQL with `docker compose up -d` from `{{DATA_ROOT}}/docker/postgres`.
 
 ## SQL Expectations
 

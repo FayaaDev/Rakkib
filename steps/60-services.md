@@ -4,12 +4,15 @@ Deploy the required and selected application services.
 
 ## Actions
 
-1. Always render and start NocoDB.
-2. If `n8n` is selected, render and start n8n.
-3. If `dbhub` is selected, render and start DBHub.
-4. For each service:
+1. If `secrets.mode` is `generate`, generate and record any still-missing app secrets before rendering:
+   - `NOCODB_ADMIN_PASS`
+   - `N8N_ENCRYPTION_KEY` if `n8n` is selected and `n8n_mode` is `fresh`
+2. Always render and start NocoDB.
+3. If `n8n` is selected, render and start n8n.
+4. If `dbhub` is selected, render and start DBHub.
+5. For each service:
    render `.env` from `.env.example`, render `docker-compose.yml`, render any extra config files the service needs, then run `docker compose up -d`.
-5. After each service starts, verify it internally before moving to the next one.
+6. After each service starts, verify it internally before moving to the next one.
 
 ## Service Notes
 

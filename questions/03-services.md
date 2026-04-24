@@ -71,3 +71,10 @@ subdomains:
 ```
 
 Record customized subdomain values if the user changed any defaults.
+
+During rendering, flatten these values into service placeholders:
+
+- `subdomains.nocodb` -> `{{NOCODB_SUBDOMAIN}}`
+- `subdomains.n8n` -> `{{N8N_SUBDOMAIN}}`
+- `subdomains.dbhub` -> `{{DBHUB_SUBDOMAIN}}`
+- `subdomains.claw` -> `{{OPENCLAW_SUBDOMAIN}}`

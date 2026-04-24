@@ -65,3 +65,5 @@ secrets:
 ```
 
 For generated mode, values may stay `null` until execution time.
+
+During rendering, every key under `secrets.values` maps directly to the placeholder of the same name. Example: `secrets.values.POSTGRES_PASSWORD` -> `{{POSTGRES_PASSWORD}}`.

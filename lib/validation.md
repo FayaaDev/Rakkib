@@ -8,7 +8,7 @@ Use these checks after each deployment step. Do not continue if a required check
 - `docker compose version`
 - `docker info`
 - `curl --version`
-- `cloudflared --version` or `docker pull cloudflare/cloudflared:latest`
+- `cloudflared --version`
 
 ## Step 10
 
@@ -26,6 +26,7 @@ Use these checks after each deployment step. Do not continue if a required check
 
 ## Step 40
 
+- `cloudflared --version`
 - `test -f {{DATA_ROOT}}/data/cloudflared/config.yml`
 - `test -f {{TUNNEL_CREDS_HOST_PATH}}`
 - `docker ps | grep cloudflared`
@@ -48,6 +49,8 @@ Use these checks after each deployment step. Do not continue if a required check
 
 ## Step 70
 
+- `node --version`
+- `npm --version`
 - `test -x "$HOME/.local/bin/openclaw"`
 - `"$HOME/.local/bin/openclaw" --version`
 - Linux: `systemctl --user status openclaw-gateway.service --no-pager`

@@ -3,7 +3,7 @@
 METRICS_URL="http://127.0.0.1:{{CLOUDFLARED_METRICS_PORT}}/metrics"
 TIMEOUT=5
 FAIL_THRESHOLD=3
-STATE_DIR="/home/{{ADMIN_USER}}/.local/share/cloudflared"
+STATE_DIR="${HOME}/.local/share/cloudflared"
 STATE_FILE="$STATE_DIR/healthcheck.state"
 LOG_FILE="$STATE_DIR/healthcheck.log"
 
