@@ -1,0 +1,80 @@
+services:
+  - id: caddy
+    required: true
+    image: caddy:2
+    default_port: 80
+    default_subdomain: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Reverse proxy. Always installed."
+
+  - id: cloudflared
+    required: true
+    image: cloudflare/cloudflared:latest
+    default_port: null
+    default_subdomain: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Cloudflare tunnel. Always installed. Requires manual tunnel login."
+
+  - id: postgres
+    required: true
+    image: pgvector/pgvector:pg16
+    default_port: 5432
+    default_subdomain: null
+    env_keys:
+      - POSTGRES_PASSWORD
+    depends_on: []
+    host_service: false
+    notes: "Single postgres instance serves all services. Port bound to 127.0.0.1 only."
+
+  - id: nocodb
+    required: true
+    image: nocodb/nocodb:latest
+    default_port: 8080
+    default_subdomain: nocodb
+    env_keys:
+      - NOCODB_DB_PASS
+      - ADMIN_EMAIL
+      - NOCODB_ADMIN_PASS
+    depends_on: [postgres]
+    host_service: false
+    notes: "No-code database UI. Always installed."
+
+  - id: n8n
+    required: false
+    optional: true
+    image: n8n-custom:latest
+    default_port: 5678
+    default_subdomain: n8n
+    env_keys:
+      - N8N_DB_PASS
+      - N8N_ENCRYPTION_KEY
+    depends_on: [postgres]
+    host_service: false
+    notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Built from custom Dockerfile."
+
+  - id: dbhub
+    required: false
+    optional: true
+    image: bytebase/dbhub:latest
+    default_port: 8080
+    default_subdomain: dbhub
+    env_keys: []
+    depends_on: [postgres]
+    host_service: false
+    notes: "Database browser. Optional. Uses dbhub.toml config file."
+
+  - id: openclaw
+    required: false
+    optional: true
+    image: null
+    default_port: 18789
+    default_subdomain: claw
+    env_keys:
+      - CLAW_GATEWAY_PORT
+    depends_on: []
+    host_service: true
+    notes: "AI gateway. Runs as systemd user unit (Linux) or launchd plist (Mac). Not a Docker container."
