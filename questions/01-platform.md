@@ -67,3 +67,10 @@ These implications are not questions — record them as derived facts alongside 
 - Docker host IP reachable from containers: `host.docker.internal`
 
 These defaults will be confirmed or overridden in `02-identity.md`.
+
+Also record the reachable host address as `host_gateway`:
+
+```yaml
+host_gateway: 172.18.0.1        # Linux
+host_gateway: host.docker.internal # Mac
+```

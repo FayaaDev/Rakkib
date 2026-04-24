@@ -1,0 +1,36 @@
+# {{SERVER_NAME}}
+
+## Identity
+
+- Domain: `{{DOMAIN}}`
+- Admin user: `{{ADMIN_USER}}`
+- Admin email: `{{ADMIN_EMAIL}}`
+- LAN IP: `{{LAN_IP}}`
+- Timezone: `{{TZ}}`
+- Data root: `{{DATA_ROOT}}`
+- Docker network: `{{DOCKER_NET}}`
+
+## Layout
+
+- `{{DATA_ROOT}}/docker`: compose files and service env files
+- `{{DATA_ROOT}}/data`: persistent data and service state
+- `{{DATA_ROOT}}/apps/static`: static files served by Caddy
+- `{{DATA_ROOT}}/backups`: local backup archives and scripts
+- `{{DATA_ROOT}}/MDs`: local documentation
+
+## Services
+
+- Caddy
+- Cloudflared
+- PostgreSQL
+- NocoDB at `https://{{NOCODB_SUBDOMAIN}}.{{DOMAIN}}`
+- Optional n8n at `https://{{N8N_SUBDOMAIN}}.{{DOMAIN}}`
+- Optional DBHub at `https://{{DBHUB_SUBDOMAIN}}.{{DOMAIN}}`
+- Optional OpenClaw at `https://{{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}`
+
+## Rules
+
+- Back up before risky changes.
+- Never serve from a source checkout.
+- Keep secrets in `.env` files.
+- Never rotate `N8N_ENCRYPTION_KEY` once n8n has data.

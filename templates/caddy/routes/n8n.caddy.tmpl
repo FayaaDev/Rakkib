@@ -1,5 +1,5 @@
 	# n8n automation service
-	@n8n host n8n.{{DOMAIN}}
+	@n8n host {{N8N_SUBDOMAIN}}.{{DOMAIN}}
 	handle @n8n {
 		reverse_proxy n8n:5678 {
 			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}

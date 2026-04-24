@@ -1,9 +1,0 @@
-	# changedetection.io - Website change monitoring
-	@changedetection host changedetection.{{DOMAIN}}
-	handle @changedetection {
-		reverse_proxy changedetection:5000 {
-			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
-	}

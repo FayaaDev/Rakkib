@@ -1,30 +1,5 @@
-	# Root domain - Personal landing page + subpath apps
+	# Root domain - generic server-ready response for v1
 	@root host {{DOMAIN}}
 	handle @root {
-		# OneHealth Signup - API (strip /signup prefix before proxying)
-		@signup_api path /signup/api*
-		handle @signup_api {
-			uri strip_prefix /signup
-			reverse_proxy {{LAN_IP}}:9321 {
-				header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-				header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-				header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-			}
-		}
-
-		# OneHealth Signup - Frontend SPA (strip /signup prefix for file serving)
-		@signup_app path /signup*
-		handle @signup_app {
-			uri strip_prefix /signup
-			root * /srv/apps/static/signup
-			try_files {path} /index.html
-			file_server
-		}
-
-		# Landing page (everything else on root domain)
-		handle {
-			root * /srv/apps/static/drfayaa
-			try_files {path} {path}/index.html /index.html
-			file_server
-		}
+		respond "FayaaSRV is live at {{DOMAIN}}" 200
 	}

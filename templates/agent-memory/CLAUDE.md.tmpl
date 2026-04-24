@@ -1,0 +1,12 @@
+# FayaaSRV Machine Rules
+
+This machine follows FayaaSRV standards.
+
+Before making any infrastructure change, read `{{DATA_ROOT}}/README.md`.
+
+Rules:
+- backups first
+- one issue at a time
+- never serve from a source directory
+- keep secrets in `.env` files, not compose files
+- do not rotate `N8N_ENCRYPTION_KEY` after first use

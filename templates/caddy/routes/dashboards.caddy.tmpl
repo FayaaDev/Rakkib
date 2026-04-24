@@ -1,7 +1,0 @@
-	# Dashboards HTML project - Health surveillance dashboards
-	@dashboards host dashboards.{{DOMAIN}}
-	handle @dashboards {
-		root * /srv/apps/static/dashboards-html
-		file_server browse
-		try_files {path} {path}/ {path}.html /index.html
-	}

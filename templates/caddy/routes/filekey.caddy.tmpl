@@ -1,7 +1,0 @@
-	# FileKey - Static PWA (public)
-	@filekey host filekey.{{DOMAIN}}
-	handle @filekey {
-		root * /srv/apps/static/filekey
-		try_files {path} /index.html
-		file_server
-	}

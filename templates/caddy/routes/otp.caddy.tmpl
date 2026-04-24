@@ -1,9 +1,0 @@
-	# OTP Service - Remote OTP storage for Playwright automation
-	@otp host otp.{{DOMAIN}}
-	handle @otp {
-		reverse_proxy {{LAN_IP}}:9224 {
-			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
-			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-		}
-	}

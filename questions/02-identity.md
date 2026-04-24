@@ -29,9 +29,9 @@ Validation:
 - Must contain at least one dot
 - Re-ask if either condition is violated
 
-### Q3 — Admin Linux Username
+### Q3 — Admin Username
 
-Ask: "What is the admin Linux username on this machine? (e.g. ubuntu — used in file paths and systemd unit ownership)"
+Ask: "What is the admin username on this machine? (e.g. ubuntu — used in file paths and service ownership)"
 
 Validation: must be non-empty.
 
@@ -67,6 +67,7 @@ tz: value
 data_root: /srv           # default for Linux; use $HOME/srv for Mac (from phase 1)
 docker_net: caddy_net
 backup_dir: "{{data_root}}/backups"
+host_gateway: 172.18.0.1 # or: host.docker.internal from phase 1
 ```
 
 Note: `data_root` is derived from `platform` (phase 1). Do not ask the user for it — set it automatically:

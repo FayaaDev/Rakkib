@@ -1,7 +1,0 @@
-	# FayForm static web app (SPA with client-side routing)
-	@form host form.{{DOMAIN}}
-	handle @form {
-		root * /srv/apps/static/fayform
-		try_files {path} /index.html
-		file_server
-	}

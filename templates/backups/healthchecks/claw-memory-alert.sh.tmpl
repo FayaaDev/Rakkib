@@ -13,7 +13,7 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 SERVICE_NAME="claw-gateway.service"
 MEMORY_WARNING_GB=1.5
 MEMORY_CRITICAL_GB=1.8
-ALERT_LOG="$HOME/.local/share/opencode/claw-memory-alerts.log"
+ALERT_LOG="$HOME/.local/share/openclaw/claw-memory-alerts.log"
 ALERT_COOLDOWN=3600  # Don't alert more than once per hour
 
 mkdir -p "$(dirname "$ALERT_LOG")"

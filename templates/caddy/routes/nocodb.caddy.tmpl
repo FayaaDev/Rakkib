@@ -1,5 +1,5 @@
 	# NocoDB database management UI
-	@nocodb host nocodb.{{DOMAIN}}
+	@nocodb host {{NOCODB_SUBDOMAIN}}.{{DOMAIN}}
 	handle @nocodb {
 		reverse_proxy nocodb:8080 {
 			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}

@@ -1,12 +1,7 @@
-	# Claw AI gateway and Control UI (WebSocket + HTTP)
-	@claw host claw.{{DOMAIN}}
+	# OpenClaw AI gateway and control UI
+	@claw host {{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}
 	handle @claw {
-		# Password protection for dashboard
-		basic_auth {
-			admin $2a$14$ieZQZzlnYV7qa7vDqDzUje2V31TIM0W.cHfITuN8BzEcT0FPKRY5O
-		}
-
-		reverse_proxy {{LAN_IP}}:18789 {
+		reverse_proxy {{HOST_GATEWAY}}:{{CLAW_GATEWAY_PORT}} {
 			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
 			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
 			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}

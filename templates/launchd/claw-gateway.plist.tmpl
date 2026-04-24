@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>openclaw-gateway</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>openclaw gateway --port {{CLAW_GATEWAY_PORT}}</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/openclaw-gateway.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/openclaw-gateway.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OPENCLAW_GATEWAY_PORT</key>
+    <string>{{CLAW_GATEWAY_PORT}}</string>
+  </dict>
+</dict>
+</plist>
