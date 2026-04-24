@@ -6,9 +6,12 @@
 
 ## Instructions for the Agent
 
-Ask the user the following six questions in order. Validate each answer as specified before accepting it. Record all values into `.fss-state.yaml`. Do not advance to `questions/03-services.md` until all six answers are validated and recorded.
+Ask the user the following five questions in order. Validate each answer as specified before accepting it. Record all values into `.fss-state.yaml`. Do not advance to `questions/03-services.md` until all five answers are validated and recorded.
 
 Use the `platform` value already recorded in phase 1 to set the `data_root` default.
+Detect `lan_ip` from the machine instead of asking for it. On Linux, prefer `hostname -I` and record the first non-loopback IPv4 address. On Mac, use a command such as `ipconfig getifaddr en0` and fall back to another active interface if needed.
+
+If no usable LAN IPv4 address can be detected automatically, stop and ask the user before continuing.
 
 ---
 
@@ -41,13 +44,7 @@ Ask: "What is the admin email address? (used for NocoDB admin account and servic
 
 Validation: must be non-empty and contain `@`.
 
-### Q5 — LAN IP Address
-
-Ask: "What is this machine's LAN IP address? (e.g. 192.168.1.100 — used for host-service routing in Caddy)"
-
-Validation: must match the pattern of four numeric octets separated by dots (e.g. `192.168.1.100`). Re-ask if it does not match.
-
-### Q6 — Timezone
+### Q5 — Timezone
 
 Ask: "What is your timezone in IANA format? (e.g. America/New_York, Europe/London, Asia/Riyadh, Asia/Tokyo, Australia/Sydney, UTC)"
 
@@ -73,3 +70,5 @@ host_gateway: 172.18.0.1 # or: host.docker.internal from phase 1
 Note: `data_root` is derived from `platform` (phase 1). Do not ask the user for it — set it automatically:
 - `platform: linux` → `data_root: /srv`
 - `platform: mac` → `data_root: $HOME/srv`
+
+Note: `lan_ip` is derived from the host network configuration in phase 2. Do not ask the user for it unless auto-detection fails.

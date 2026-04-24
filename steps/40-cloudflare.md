@@ -4,7 +4,7 @@ Render and deploy the Cloudflare tunnel after the user confirms the setup.
 
 ## Actions
 
-1. Confirm the host `cloudflared` CLI is installed and runnable with `cloudflared --version` before doing any tunnel work.
+1. Confirm the host `cloudflared` CLI is installed and runnable with `cloudflared --version` before doing any tunnel work. If it was installed into `~/.local/bin`, invoke that path directly when the shell `PATH` has not been refreshed yet.
 2. If `cloudflare.tunnel_strategy` is `new`, guide the user through:
    `cloudflared tunnel login` and `cloudflared tunnel create <tunnel_name>`.
 3. If `cloudflare.tunnel_strategy` is `existing`, confirm the tunnel exists and gather its UUID if not already recorded.

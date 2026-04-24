@@ -8,7 +8,7 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 - `{{DOMAIN}}`: base domain for the server
 - `{{ADMIN_USER}}`: local admin username
 - `{{ADMIN_EMAIL}}`: admin email for service bootstrap
-- `{{LAN_IP}}`: machine LAN IP for SSH exposure through Cloudflare
+- `{{LAN_IP}}`: machine LAN IP for SSH exposure through Cloudflare, auto-detected from the host when possible
 - `{{TZ}}`: IANA timezone
 - `{{DATA_ROOT}}`: `/srv` on Linux or `$HOME/srv` on Mac by default
 - `{{DOCKER_NET}}`: shared Docker network name, default `caddy_net`

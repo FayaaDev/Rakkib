@@ -6,7 +6,13 @@
 
 ## Instructions for the Agent
 
-Ask the user the following three questions in order. Record answers into `.fss-state.yaml` under the keys specified. Do not advance to `questions/02-identity.md` until all three answers are recorded.
+Ask the user the following questions in order. Linux runs ask three questions; Mac runs ask two because the Linux-only privilege question is skipped. Record answers into `.fss-state.yaml` under the keys specified. Do not advance to `questions/02-identity.md` until every required answer is recorded.
+
+Detect `arch` from the machine instead of asking for it. Use `uname -m` and normalize as follows:
+- `x86_64` -> `amd64`
+- `aarch64` or `arm64` -> `arm64`
+
+If detection returns anything else, stop and ask the user before continuing.
 
 ---
 
@@ -22,15 +28,18 @@ Accepted answers (case-insensitive, normalize to lowercase):
 
 Re-ask if the user provides any other answer.
 
-### Q2 — CPU Architecture
+### Q2 — Linux Privilege Mode
 
-Ask: "What CPU architecture is this machine?"
+Ask on Linux only: "Can this account use `sudo` for system installs and service setup? (`sudo`/`root`/`none`)"
 
 Accepted answers (case-insensitive, normalize to lowercase):
-- `amd64` — standard x86-64 (most Linux servers, Intel Macs)
-- `arm64` — Apple Silicon (M1/M2/M3/M4 Macs) or ARM Linux boards
+- `sudo` — the agent may prompt once for the sudo password after confirmation
+- `root` — the agent is already running as root or does not need sudo
+- `none` — the account cannot perform system-level installs
 
-Re-ask if the user provides any other answer.
+For Mac, do not ask this question. Record `privilege_mode: sudo` by default because the Linux sudo flow does not apply.
+
+If Linux and the user answers `none`, note that a fresh Linux install that needs Docker cannot proceed until the installer is run from a privileged account.
 
 ### Q3 — Docker Status
 
@@ -46,7 +55,8 @@ If the user answers `n`, note that step `steps/00-prereqs.md` will handle Docker
 
 ```yaml
 platform: linux        # or: mac
-arch: amd64            # or: arm64
+arch: amd64            # or: arm64, auto-detected from `uname -m`
+privilege_mode: sudo   # Linux: sudo | root | none; Mac: sudo
 docker_installed: true # or: false
 ```
 

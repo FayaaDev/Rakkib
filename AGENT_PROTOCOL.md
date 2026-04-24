@@ -7,7 +7,7 @@ This file defines the exact operating procedure for any coding agent using this 
 1. Read `README.md`, `registry.yaml`, `lib/placeholders.md`, and the current question file before acting.
 2. Use `.fss-state.yaml` as the single source of truth for collected answers and derived values.
 3. Do not write outside the repo during Phases 1 through 6.
-4. Ask questions exactly in order. Validate and normalize answers before recording them.
+4. Ask questions exactly in order. Validate and normalize answers before recording them. When a value is marked as host-detected, run the required local command instead of asking the user.
 5. Do not skip required phases even if values seem obvious.
 6. After confirmation, execute the step files in numeric order.
 7. Stop on any failed `## Verify` block. Fix the issue before advancing.
@@ -23,6 +23,7 @@ Expected high-level sections:
 ```yaml
 platform: linux
 arch: amd64
+privilege_mode: sudo
 docker_installed: true
 data_root: /srv
 docker_net: caddy_net
@@ -55,8 +56,11 @@ confirmed: false
 
 Derived value rules:
 
+- Detect `arch` from the host with `uname -m` during Phase 1 and normalize it to `amd64` or `arm64` before recording it.
+- Detect `lan_ip` from the host during Phase 2 and record the first usable LAN IPv4 address before rendering templates.
 - Always derive `claw_gateway_port` as `18789` unless the repo is explicitly changed to ask for a different value.
 - Always derive `cloudflared_metrics_port` as `20241` unless the repo is explicitly changed to ask for a different value.
+- Record Linux privilege capability as `privilege_mode` with one of `sudo`, `root`, or `none`. On Mac, record `privilege_mode: sudo`.
 - When `cloudflare.tunnel_uuid` is known, derive and record:
   - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
   - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
@@ -165,7 +169,16 @@ After confirmation, run these step files in order:
 6. For Cloudflared, always normalize the credentials JSON to `{{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json` on the host and render the in-container path `/home/nonroot/.cloudflared/<tunnel_uuid>.json` into `config.yml`.
 7. For SSH over Cloudflare, always use the recorded custom subdomain value rather than assuming `ssh`.
 8. A local host `cloudflared` CLI is required for tunnel login, creation, and DNS routing. The container image alone is not enough for Step 40.
-9. If `secrets.mode` is `generate`, generate each missing secret immediately before the first step that needs it, then write it back into `.fss-state.yaml` before rendering any file that uses it.
+9. If the host `cloudflared` CLI is missing, install it during Step 00 into `~/.local/bin/cloudflared` and ensure later steps invoke it through `PATH` or the absolute path.
+10. If `secrets.mode` is `generate`, generate each missing secret immediately before the first step that needs it, then write it back into `.fss-state.yaml` before rendering any file that uses it.
+
+## Privilege Rules
+
+1. Do not ask the user to edit sudoers or run pre-install shell commands outside the normal interview and deployment flow.
+2. On Linux, if `privilege_mode` is `sudo`, authenticate once after Phase 6 with `sudo -v` before Step 00 and reuse that privilege for system package installs and service setup.
+3. On Linux, if `privilege_mode` is `root`, run required system actions directly without `sudo`.
+4. On Linux, if `privilege_mode` is `none` and a step requires system changes such as installing Docker or enabling linger, stop and tell the user the install must be re-run from a privileged account.
+5. Prefer user-scoped installs when they satisfy the requirement. The host `cloudflared` CLI should be installed without root into `~/.local/bin`.
 
 ## Platform Rules
 
@@ -173,11 +186,13 @@ Linux defaults:
 - `data_root: /srv`
 - init system: `systemd`
 - `host_gateway: 172.18.0.1`
+- detect LAN IP from the first non-loopback IPv4 returned by `hostname -I`
 
 Mac defaults:
 - `data_root: $HOME/srv`
 - init system: `launchd`
 - `host_gateway: host.docker.internal`
+- detect LAN IP from an active interface such as `en0`
 
 ## Completion Rules
 

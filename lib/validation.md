@@ -8,7 +8,7 @@ Use these checks after each deployment step. Do not continue if a required check
 - `docker compose version`
 - `docker info`
 - `curl --version`
-- `cloudflared --version`
+- `cloudflared --version` or `~/.local/bin/cloudflared --version`
 
 ## Step 10
 
@@ -26,7 +26,7 @@ Use these checks after each deployment step. Do not continue if a required check
 
 ## Step 40
 
-- `cloudflared --version`
+- `cloudflared --version` or `~/.local/bin/cloudflared --version`
 - `test -f {{DATA_ROOT}}/data/cloudflared/config.yml`
 - `test -f {{TUNNEL_CREDS_HOST_PATH}}`
 - `docker ps | grep cloudflared`

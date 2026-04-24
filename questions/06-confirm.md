@@ -10,6 +10,7 @@ Before asking for confirmation, present a concise summary of the recorded state:
 
 - platform
 - architecture
+- privilege mode
 - data root
 - server name
 - domain
@@ -20,6 +21,10 @@ Before asking for confirmation, present a concise summary of the recorded state:
 - subdomains
 - Cloudflare tunnel strategy
 - secret strategy
+
+If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that the installer will ask for one sudo authentication during Step 00 for system-level setup.
+
+Make it clear in the summary when `architecture` and `LAN IP` were auto-detected from the host.
 
 Then ask for one final yes/no confirmation.
 
