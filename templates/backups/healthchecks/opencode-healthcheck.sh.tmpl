@@ -1,0 +1,80 @@
+#!/bin/bash
+# OpenCode Health Check and Auto-Recovery Script
+# Monitors OpenCode server responsiveness and restarts if hung
+
+HEALTHCHECK_URL="http://localhost:{{OPENCODE_PORT}}/session"
+TIMEOUT=5
+LOG_FILE="/home/{{ADMIN_USER}}/.local/share/opencode/healthcheck.log"
+MAX_MEMORY_MB=12000  # Alert if memory exceeds 12GB
+
+timestamp() {
+    date "+%Y-%m-%d %H:%M:%S"
+}
+
+log() {
+    echo "[$(timestamp)] $1" | tee -a "$LOG_FILE"
+}
+
+# Check if service is running
+if ! systemctl is-active --quiet opencode-serve; then
+    log "ERROR: opencode-serve service is not running. Starting..."
+    sudo systemctl start opencode-serve
+    sleep 3
+    if systemctl is-active --quiet opencode-serve; then
+        log "SUCCESS: Service started successfully"
+    else
+        log "CRITICAL: Failed to start opencode-serve service"
+        exit 1
+    fi
+fi
+
+# Get process info
+PID=$(systemctl show opencode-serve --property MainPID --value)
+if [ "$PID" = "0" ] || [ -z "$PID" ]; then
+    log "ERROR: Could not get OpenCode PID"
+    exit 1
+fi
+
+# Check memory usage
+MEMORY_KB=$(ps -p "$PID" -o rss= 2>/dev/null | tr -d ' ')
+if [ -n "$MEMORY_KB" ]; then
+    MEMORY_MB=$((MEMORY_KB / 1024))
+    if [ "$MEMORY_MB" -gt "$MAX_MEMORY_MB" ]; then
+        log "WARNING: High memory usage: ${MEMORY_MB}MB (threshold: ${MAX_MEMORY_MB}MB)"
+    fi
+fi
+
+# Health check via HTTP
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$TIMEOUT" "$HEALTHCHECK_URL" 2>/dev/null)
+
+if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
+    # Success - 200 or 401 both indicate service is responding
+    # (401 is expected for unauthenticated /session requests)
+    # Log only once per hour to avoid spam
+    LAST_SUCCESS=$(find "$LOG_FILE" -type f -mmin -60 2>/dev/null | wc -l)
+    if [ "$LAST_SUCCESS" -eq 0 ]; then
+        log "OK: OpenCode healthy (PID: $PID, Memory: ${MEMORY_MB}MB, HTTP: $HTTP_CODE)"
+    fi
+    exit 0
+else
+    log "ERROR: Health check failed (HTTP: $HTTP_CODE, PID: $PID, Memory: ${MEMORY_MB}MB)"
+    log "ACTION: Restarting opencode-serve service..."
+
+    sudo systemctl restart opencode-serve
+    sleep 5
+
+    # Verify restart
+    if systemctl is-active --quiet opencode-serve; then
+        NEW_PID=$(systemctl show opencode-serve --property MainPID --value)
+        VERIFY_HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$TIMEOUT" "$HEALTHCHECK_URL" 2>/dev/null)
+
+        if [ "$VERIFY_HTTP" = "200" ] || [ "$VERIFY_HTTP" = "401" ]; then
+            log "SUCCESS: Service restarted and healthy (New PID: $NEW_PID, HTTP: $VERIFY_HTTP)"
+        else
+            log "WARNING: Service restarted but health check still failing (HTTP: $VERIFY_HTTP)"
+        fi
+    else
+        log "CRITICAL: Service restart failed"
+        exit 1
+    fi
+fi

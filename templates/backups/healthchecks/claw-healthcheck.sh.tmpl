@@ -1,0 +1,189 @@
+#!/bin/bash
+#
+# Claw Gateway Health Check Script
+# Purpose: Monitor Claw Gateway health and auto-restart if needed
+# Schedule: Every 5 minutes via cron
+#
+
+set -euo pipefail
+
+# Ensure user systemd bus is reachable from cron
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
+# Configuration
+SERVICE_NAME="claw-gateway.service"
+HEALTH_URL="http://localhost:{{CLAW_GATEWAY_PORT}}/"
+TIMEOUT=5
+LOG_FILE="$HOME/.local/share/opencode/claw-healthcheck.log"
+MEMORY_THRESHOLD_GB=1.5
+MAX_LOG_LINES=1000
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+svcctl() {
+    systemctl --user "$@"
+}
+
+# Rotate log if too large
+rotate_log() {
+    if [[ -f "$LOG_FILE" ]]; then
+        local line_count=$(wc -l < "$LOG_FILE")
+        if [[ $line_count -gt $MAX_LOG_LINES ]]; then
+            tail -n 500 "$LOG_FILE" > "$LOG_FILE.tmp"
+            mv "$LOG_FILE.tmp" "$LOG_FILE"
+            log "Log rotated (was $line_count lines, now 500)"
+        fi
+    fi
+}
+
+# Check if service is running
+check_service_status() {
+    if ! svcctl is-active --quiet "$SERVICE_NAME"; then
+        log "ERROR: Service $SERVICE_NAME is not active"
+        return 1
+    fi
+    return 0
+}
+
+# Check HTTP endpoint
+check_http_health() {
+    local response
+    local http_code
+
+    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$TIMEOUT" "$HEALTH_URL" 2>&1)
+    http_code=$?
+
+    if [[ $http_code -eq 0 ]] && [[ "$response" =~ ^[23] ]]; then
+        return 0
+    else
+        log "ERROR: HTTP health check failed (curl exit: $http_code, response: $response)"
+        return 1
+    fi
+}
+
+# Check memory usage
+check_memory() {
+    local memory_bytes
+    local memory_gb
+
+    memory_bytes=$(svcctl show "$SERVICE_NAME" --property=MemoryCurrent --value 2>/dev/null || echo "0")
+
+    if [[ "$memory_bytes" == "[not set]" ]] || [[ "$memory_bytes" -eq 0 ]]; then
+        log "WARNING: Cannot read memory usage"
+        return 0
+    fi
+
+    memory_gb=$(echo "scale=2; $memory_bytes / 1024 / 1024 / 1024" | bc)
+
+    if (( $(echo "$memory_gb >= $MEMORY_THRESHOLD_GB" | bc -l) )); then
+        log "WARNING: High memory usage: ${memory_gb}GB (threshold: ${MEMORY_THRESHOLD_GB}GB)"
+        return 2  # Warning, not error
+    fi
+
+    return 0
+}
+
+# Check process exists
+check_process() {
+    if ! pgrep -f "openclaw" > /dev/null; then
+        log "ERROR: Claw process not found"
+        return 1
+    fi
+    return 0
+}
+
+# Restart service
+restart_service() {
+    log "CRITICAL: Attempting to restart $SERVICE_NAME"
+
+    if svcctl restart "$SERVICE_NAME"; then
+        log "SUCCESS: Service restarted successfully"
+        sleep 15  # Wait for service to stabilize (Claw needs longer startup)
+
+        # Verify restart worked
+        if check_service_status && check_http_health; then
+            log "SUCCESS: Service is healthy after restart"
+            return 0
+        else
+            log "ERROR: Service still unhealthy after restart"
+            return 1
+        fi
+    else
+        log "ERROR: Failed to restart service"
+        return 1
+    fi
+}
+
+# Get service uptime
+get_uptime() {
+    svcctl show "$SERVICE_NAME" --property=ActiveEnterTimestamp --value
+}
+
+# Get restart count
+get_restart_count() {
+    svcctl show "$SERVICE_NAME" --property=NRestarts --value
+}
+
+# Main health check logic
+main() {
+    rotate_log
+
+    local health_ok=true
+    local memory_warning=false
+
+    # Check service status
+    if ! check_service_status; then
+        health_ok=false
+    fi
+
+    # Check process exists
+    if ! check_process; then
+        health_ok=false
+    fi
+
+    # Check HTTP endpoint
+    if ! check_http_health; then
+        health_ok=false
+    fi
+
+    # Check memory (non-critical)
+    if ! check_memory; then
+        local mem_exit=$?
+        if [[ $mem_exit -eq 2 ]]; then
+            memory_warning=true
+        fi
+    fi
+
+    # Take action if unhealthy
+    if [[ "$health_ok" == false ]]; then
+        log "ALERT: Health check FAILED"
+        restart_service
+        exit 1
+    fi
+
+    # Log success (verbose every 5 checks, ~25 minutes)
+    if [[ $((RANDOM % 5)) -eq 0 ]] || [[ "$memory_warning" == true ]]; then
+        local uptime=$(get_uptime)
+        local restarts=$(get_restart_count)
+        local mem_bytes=$(svcctl show "$SERVICE_NAME" --property=MemoryCurrent --value 2>/dev/null || echo "0")
+        local mem_gb="N/A"
+
+        if [[ "$mem_bytes" != "[not set]" ]] && [[ "$mem_bytes" -ne 0 ]]; then
+            mem_gb=$(echo "scale=2; $mem_bytes / 1024 / 1024 / 1024" | bc)
+        fi
+
+        log "OK: Service healthy | Uptime: $uptime | Restarts: $restarts | Memory: ${mem_gb}GB"
+    fi
+
+    exit 0
+}
+
+# Run main function
+main "$@"

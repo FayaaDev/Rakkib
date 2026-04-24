@@ -1,0 +1,87 @@
+#!/bin/bash
+#
+# Claw Memory Alert Monitor
+# Purpose: Send alerts when Claw memory usage is high
+#
+
+set -euo pipefail
+
+# Ensure user systemd bus is reachable from cron
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
+SERVICE_NAME="claw-gateway.service"
+MEMORY_WARNING_GB=1.5
+MEMORY_CRITICAL_GB=1.8
+ALERT_LOG="$HOME/.local/share/opencode/claw-memory-alerts.log"
+ALERT_COOLDOWN=3600  # Don't alert more than once per hour
+
+mkdir -p "$(dirname "$ALERT_LOG")"
+
+svcctl() {
+    systemctl --user "$@"
+}
+
+get_memory_gb() {
+    local mem_bytes=$(svcctl show "$SERVICE_NAME" --property=MemoryCurrent --value 2>/dev/null)
+
+    if [[ "$mem_bytes" == "[not set]" ]] || [[ -z "$mem_bytes" ]]; then
+        echo "0"
+        return
+    fi
+
+    echo "scale=2; $mem_bytes / 1024 / 1024 / 1024" | bc
+}
+
+get_last_alert_time() {
+    if [[ -f "$ALERT_LOG" ]]; then
+        tail -1 "$ALERT_LOG" | grep -oP '^\[\K[^]]+' | xargs -I{} date -d {} +%s 2>/dev/null || echo "0"
+    else
+        echo "0"
+    fi
+}
+
+send_alert() {
+    local level="$1"
+    local memory_gb="$2"
+    local message="$3"
+
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $level: Claw Memory ${memory_gb}GB - $message" | tee -a "$ALERT_LOG"
+
+    # TODO: Add notification integration (email, Telegram, etc.)
+    # Example: notify-send "Claw Alert" "$message"
+}
+
+main() {
+    local memory_gb=$(get_memory_gb)
+    local current_time=$(date +%s)
+    local last_alert=$(get_last_alert_time)
+    local time_since_alert=$((current_time - last_alert))
+
+    if (( $(echo "$memory_gb == 0" | bc -l) )); then
+        # Service not running or memory not available
+        exit 0
+    fi
+
+    # Check if cooldown period has passed
+    if [[ $time_since_alert -lt $ALERT_COOLDOWN ]]; then
+        exit 0
+    fi
+
+    # Critical threshold
+    if (( $(echo "$memory_gb >= $MEMORY_CRITICAL_GB" | bc -l) )); then
+        send_alert "CRITICAL" "$memory_gb" "Memory usage critical! Approaching 2GB limit."
+        exit 1
+    fi
+
+    # Warning threshold
+    if (( $(echo "$memory_gb >= $MEMORY_WARNING_GB" | bc -l) )); then
+        send_alert "WARNING" "$memory_gb" "Memory usage high. Monitor for potential issues."
+        exit 0
+    fi
+
+    exit 0
+}
+
+main "$@"
