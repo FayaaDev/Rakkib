@@ -4,6 +4,7 @@ Use these checks after each deployment step. Do not continue if a required check
 
 ## Step 00
 
+- Linux helper path: `/usr/local/libexec/fayaasrv-root-helper probe` as root or `sudo -n /usr/local/libexec/fayaasrv-root-helper probe` from a helper-enabled user
 - `docker --version`
 - `docker compose version`
 - `docker info`

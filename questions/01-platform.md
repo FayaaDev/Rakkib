@@ -8,6 +8,11 @@
 
 Ask the user the following questions in order. Linux runs ask three questions; Mac runs ask two because the Linux-only privilege question is skipped. Record answers into `.fss-state.yaml` under the keys specified. Do not advance to `questions/02-identity.md` until every required answer is recorded.
 
+On Linux, also detect whether `/usr/local/libexec/fayaasrv-root-helper` is already installed and usable:
+- If running as root, call `/usr/local/libexec/fayaasrv-root-helper probe` directly when the file exists.
+- If running unprivileged, try `sudo -n /usr/local/libexec/fayaasrv-root-helper probe`.
+- If the helper is absent or unusable, record that Step 00 must bootstrap it before any root-required work continues.
+
 Detect `arch` from the machine instead of asking for it. Use `uname -m` and normalize as follows:
 - `x86_64` -> `amd64`
 - `aarch64` or `arm64` -> `arm64`
@@ -30,16 +35,16 @@ Re-ask if the user provides any other answer.
 
 ### Q2 — Linux Privilege Mode
 
-Ask on Linux only: "Can this account use `sudo` for system installs and service setup? (`sudo`/`root`/`none`)"
+Ask on Linux only: "Can this account cross the root boundary for system setup? (`sudo`/`root`/`none`)"
 
 Accepted answers (case-insensitive, normalize to lowercase):
-- `sudo` — the agent may prompt once for the sudo password after confirmation
+- `sudo` — the installer may need one bootstrap trust event in Step 00 to install or unlock the helper
 - `root` — the agent is already running as root or does not need sudo
 - `none` — the account cannot perform system-level installs
 
-For Mac, do not ask this question. Record `privilege_mode: sudo` by default because the Linux sudo flow does not apply.
+For Mac, do not ask this question. Record `privilege_mode: sudo`, `privilege_strategy: none`, and `helper.installed: false` by default because the Linux helper flow does not apply.
 
-If Linux and the user answers `none`, note that a fresh Linux install that needs Docker cannot proceed until the installer is run from a privileged account.
+If Linux and the user answers `none`, note that a fresh Linux install that needs Docker cannot proceed until the installer is run from a privileged account or a machine image with the helper preinstalled.
 
 ### Q3 — Docker Status
 
@@ -47,7 +52,7 @@ Ask: "Is Docker already installed and running on this machine? (y/n)"
 
 Accepted answers: `y` or `n`. Normalize to boolean.
 
-If the user answers `n`, note that step `steps/00-prereqs.md` will handle Docker installation before any other step runs.
+If the user answers `n`, note that step `steps/00-prereqs.md` will handle Docker installation before any other step runs. On Linux, the documented install path is Docker's official Docker Engine for Ubuntu method routed through the privileged helper.
 
 ---
 
@@ -57,6 +62,11 @@ If the user answers `n`, note that step `steps/00-prereqs.md` will handle Docker
 platform: linux        # or: mac
 arch: amd64            # or: arm64, auto-detected from `uname -m`
 privilege_mode: sudo   # Linux: sudo | root | none; Mac: sudo
+privilege_strategy: helper  # Linux: helper | root_process | none; Mac: none
+helper:
+  installed: true
+  version: 1
+  bootstrap_required: false
 docker_installed: true # or: false
 ```
 

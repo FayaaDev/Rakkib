@@ -36,6 +36,7 @@ Use this repo as the installer.
 Ask me the question files in order.
 Record answers in .fss-state.yaml.
 Do not write outside the repo until Phase 6 (questions/06-confirm.md).
+Use the helper-first Linux privilege flow instead of raw sudo for normal step execution.
 After confirmation, execute steps/00-prereqs.md through steps/90-verify.md in order.
 Stop on any failed Verify block and fix it before continuing.
 ```
@@ -43,9 +44,10 @@ Stop on any failed Verify block and fix it before continuing.
 Expected flow:
 
 1. The agent asks `questions/01-platform.md` through `questions/06-confirm.md`.
-2. After confirmation, the agent runs the deployment steps in order.
-3. The run is complete only when `steps/90-verify.md` passes.
-4. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
+2. On fresh Ubuntu Linux installs, the agent should prefer a preinstalled helper or install it during one bootstrap trust event in Step 00, then use the helper for later root-required work.
+3. After confirmation, the agent runs the deployment steps in order.
+4. The run is complete only when `steps/90-verify.md` passes.
+5. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
 
 ## v1 Scope
 
@@ -95,6 +97,11 @@ Use `.fss-state.yaml` as the only scratch state file during the interview and re
 
 Derived defaults that must be recorded before rendering:
 
+- `privilege_mode: sudo | root | none` on Linux, `sudo` on Mac
+- `privilege_strategy: helper | root_process | none`
+- `helper.installed: true | false`
+- `helper.version: <number>|null`
+- `helper.bootstrap_required: true | false`
 - `claw_gateway_port: 18789`
 - `cloudflared_metrics_port: 20241`
 - when `cloudflare.tunnel_uuid` is known:
@@ -137,3 +144,11 @@ On a fresh machine, an agent should be able to use only this repo plus the user'
 - optional `https://{{OPENCLAW_SUBDOMAIN}}.<domain>`
 
 with Caddy, Cloudflare Tunnel, and PostgreSQL configured in the same operating style as the source server.
+
+## Linux Privileges
+
+- Fresh Ubuntu Linux installs need a privileged account for Docker Engine installation and some service setup.
+- The standard Linux privilege path is a root-owned helper at `/usr/local/libexec/fayaasrv-root-helper` with a scoped `/etc/sudoers.d/fayaasrv-helper` rule for that path only.
+- If the helper is not already present, Step 00 may use one bootstrap trust event to run `sudo ./scripts/install-privileged-helper --admin-user <user>`, but raw `sudo` is not the normal step execution model.
+- Do not require the user to hand-edit `/etc/sudoers` or grant blanket `NOPASSWD` access.
+- The host `cloudflared` CLI should be installed without root into `~/.local/bin/cloudflared` when it is missing.

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly HELPER_DEST="/usr/local/libexec/fayaasrv-root-helper"
+readonly SUDOERS_DEST="/etc/sudoers.d/fayaasrv-helper"
+
+fail() {
+  local code="$1"
+  shift
+  local msg="$*"
+  printf '{"ok":false,"error":"%s"}\n' "$msg" >&2
+  exit "$code"
+}
+
+ok() {
+  printf '{"ok":true,"admin_user":"%s","helper_path":"%s","sudoers_path":"%s"}\n' "$1" "$HELPER_DEST" "$SUDOERS_DEST"
+}
+
+require_root() {
+  [[ "${EUID}" -eq 0 ]] || fail 1 "must run as root"
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail 1 "required command missing: $1"
+}
+
+validate_user() {
+  local user="$1"
+  id "$user" >/dev/null 2>&1 || fail 2 "unknown admin user: $user"
+}
+
+main() {
+  require_root
+  require_command install
+  require_command visudo
+
+  [[ "$#" -eq 2 && "$1" == "--admin-user" ]] || fail 2 "usage: install-privileged-helper --admin-user <user>"
+  local admin_user="$2"
+  validate_user "$admin_user"
+
+  local script_dir repo_root helper_source tmp_sudoers
+  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+  repo_root="$(cd -- "$script_dir/.." && pwd)"
+  helper_source="$repo_root/scripts/fayaasrv-root-helper"
+  [[ -f "$helper_source" ]] || fail 2 "helper source not found: $helper_source"
+
+  install -d -m 0755 /usr/local/libexec
+  install -o root -g root -m 0755 "$helper_source" "$HELPER_DEST"
+
+  tmp_sudoers="$(mktemp)"
+  trap 'rm -f "$tmp_sudoers"' EXIT
+  printf '%s ALL=(root) NOPASSWD: %s\n' "$admin_user" "$HELPER_DEST" > "$tmp_sudoers"
+  chmod 0440 "$tmp_sudoers"
+  visudo -cf "$tmp_sudoers" >/dev/null
+
+  install -d -m 0755 /etc/sudoers.d
+  install -o root -g root -m 0440 "$tmp_sudoers" "$SUDOERS_DEST"
+  visudo -cf "$SUDOERS_DEST" >/dev/null
+
+  ok "$admin_user"
+}
+
+main "$@"

@@ -11,6 +11,7 @@ Before asking for confirmation, present a concise summary of the recorded state:
 - platform
 - architecture
 - privilege mode
+- privilege strategy and helper status
 - data root
 - server name
 - domain
@@ -22,7 +23,7 @@ Before asking for confirmation, present a concise summary of the recorded state:
 - Cloudflare tunnel strategy
 - secret strategy
 
-If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that the installer will ask for one sudo authentication during Step 00 for system-level setup.
+If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that Step 00 will either reuse the installed helper immediately or perform one bootstrap trust event to install or unlock it before root-required work continues.
 
 Make it clear in the summary when `architecture` and `LAN IP` were auto-detected from the host.
 

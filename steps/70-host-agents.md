@@ -8,18 +8,16 @@ Only run this step if `openclaw` is selected.
 
 Linux:
 1. Ensure `node >= 22.14.0` and `npm` are installed.
-2. Reuse the Linux privilege path established in Step 00. If `privilege_mode` is `none` and Node.js still needs a system install, stop and tell the user to re-run from a privileged account.
-3. If Node.js is missing or too old on Ubuntu 24.04, install Node.js 22 LTS first:
-   - with `privilege_mode: sudo`: `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -` then `sudo apt-get install -y nodejs`
-   - with `privilege_mode: root`: `curl -fsSL https://deb.nodesource.com/setup_22.x | bash -` then `apt-get install -y nodejs`
+2. Reuse the helper established in Step 00. If `privilege_mode` is `none` and the helper is not already available while Node.js still needs a system install, stop and tell the user to re-run from a privileged account.
+3. If Node.js is missing or too old on Ubuntu 24.04, install Node.js 22 LTS through the helper first:
+   `/usr/local/libexec/fayaasrv-root-helper install-nodejs22-ubuntu`
 4. Verify `node --version` and `npm --version` before installing OpenClaw.
 5. Install OpenClaw into a user-scoped prefix with `npm install -g --prefix "$HOME/.local" openclaw@latest`.
 6. Verify the real entrypoint exists at `~/.local/bin/openclaw` before writing the unit file.
 7. Render `templates/systemd/claw-gateway.service.tmpl` into `~/.config/systemd/user/openclaw-gateway.service`.
 8. Run `systemctl --user daemon-reload`.
-9. Enable linger so the user service survives logout and reboots:
-   - with `privilege_mode: sudo`: `sudo loginctl enable-linger {{ADMIN_USER}}`
-   - with `privilege_mode: root`: `loginctl enable-linger {{ADMIN_USER}}`
+9. Enable linger through the helper so the user service survives logout and reboots:
+   `/usr/local/libexec/fayaasrv-root-helper enable-linger --admin-user {{ADMIN_USER}}`
 10. Enable and start the service.
 
 Mac:

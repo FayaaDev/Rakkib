@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly HELPER_VERSION=1
+readonly HELPER_PATH="/usr/local/libexec/fayaasrv-root-helper"
+readonly LOCK_PATH="/run/lock/fayaasrv-root-helper.lock"
+
+log() {
+  local level="$1"
+  shift
+  local msg="$*"
+  if command -v logger >/dev/null 2>&1; then
+    logger -t fayaasrv-root-helper "level=${level} user=$(id -un 2>/dev/null || printf unknown) msg=${msg}"
+  fi
+}
+
+fail() {
+  local code="$1"
+  shift
+  local msg="$*"
+  log error "$msg"
+  printf '{"ok":false,"error":"%s"}\n' "$msg" >&2
+  exit "$code"
+}
+
+ok() {
+  printf '{"ok":true,"verb":"%s"%s}\n' "$1" "$2"
+}
+
+require_root() {
+  [[ "${EUID}" -eq 0 ]] || fail 1 "must run as root"
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail 1 "required command missing: $1"
+}
+
+validate_user() {
+  local user="$1"
+  id "$user" >/dev/null 2>&1 || fail 2 "unknown admin user: $user"
+}
+
+ubuntu_codename() {
+  [[ -r /etc/os-release ]] || fail 2 "unsupported platform: missing /etc/os-release"
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  [[ "${ID:-}" == "ubuntu" ]] || fail 2 "unsupported distro: ${ID:-unknown}"
+  printf '%s\n' "${VERSION_CODENAME:-}"
+}
+
+managed_realpath() {
+  local raw="$1"
+  require_command realpath
+  local resolved
+  resolved="$(realpath -m -- "$raw")"
+  case "$resolved" in
+    /srv|/srv/docker|/srv/data|/srv/apps/static|/srv/backups|/srv/MDs|/srv/docker/*|/srv/data/*|/srv/apps/static/*|/srv/backups/*|/srv/MDs/*)
+      printf '%s\n' "$resolved"
+      ;;
+    *)
+      fail 2 "path outside managed allowlist: $raw"
+      ;;
+  esac
+}
+
+write_file_exact() {
+  local path="$1"
+  local content="$2"
+  umask 022
+  printf '%s\n' "$content" > "$path"
+}
+
+json_array_from_words() {
+  if [[ "$#" -eq 0 ]]; then
+    printf '[]'
+    return
+  fi
+
+  local out='['
+  local item
+  for item in "$@"; do
+    out+="\"${item}\","
+  done
+  out="${out%,}]"
+  printf '%s' "$out"
+}
+
+ensure_lock() {
+  mkdir -p "$(dirname "$LOCK_PATH")"
+  exec 9>"$LOCK_PATH"
+  flock -n 9 || fail 1 "another helper invocation is already running"
+}
+
+ensure_apt_prereqs() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y ca-certificates curl gnupg
+}
+
+verb_probe() {
+  ok probe ',"version":1,"helper_path":"/usr/local/libexec/fayaasrv-root-helper","verbs":["probe","install-docker-engine-ubuntu","ensure-linux-layout","install-nodejs22-ubuntu","enable-linger","fix-ownership"]'
+}
+
+verb_install_docker_engine_ubuntu() {
+  [[ "$#" -eq 2 && "$1" == "--admin-user" ]] || fail 2 "usage: install-docker-engine-ubuntu --admin-user <user>"
+  local admin_user="$2"
+  validate_user "$admin_user"
+  local codename
+  codename="$(ubuntu_codename)"
+  require_command apt-get
+  require_command dpkg
+  require_command systemctl
+  ensure_apt_prereqs
+
+  apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
+  install -d -m 0755 /etc/apt/keyrings
+  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+  fi
+
+  local arch
+  arch="$(dpkg --print-architecture)"
+  write_file_exact "/etc/apt/sources.list.d/docker.list" "deb [arch=${arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${codename} stable"
+
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  systemctl enable --now docker
+
+  if ! id -nG "$admin_user" | tr ' ' '\n' | grep -Fxq docker; then
+    usermod -aG docker "$admin_user"
+  fi
+
+  if [[ -S /var/run/docker.sock ]]; then
+    if command -v setfacl >/dev/null 2>&1; then
+      setfacl -m "u:${admin_user}:rw" /var/run/docker.sock
+      ok install-docker-engine-ubuntu ',"admin_user":"'"$admin_user"'","docker_group_added":true,"docker_socket_acl_applied":true'
+      return
+    fi
+  fi
+
+  ok install-docker-engine-ubuntu ',"admin_user":"'"$admin_user"'","docker_group_added":true,"docker_socket_acl_applied":false'
+}
+
+verb_ensure_linux_layout() {
+  [[ "$#" -ge 2 && "$1" == "--admin-user" ]] || fail 2 "usage: ensure-linux-layout --admin-user <user> [--with-service <name> ...]"
+  local admin_user="$2"
+  shift 2
+  validate_user "$admin_user"
+
+  local services=()
+  while [[ "$#" -gt 0 ]]; do
+    [[ "$1" == "--with-service" ]] || fail 2 "unknown argument: $1"
+    [[ "$#" -ge 2 ]] || fail 2 "missing service name"
+    case "$2" in
+      caddy|cloudflared|postgres|nocodb|n8n|dbhub|openclaw)
+        services+=("$2")
+        ;;
+      *)
+        fail 2 "unsupported service: $2"
+        ;;
+    esac
+    shift 2
+  done
+
+  install -d -m 0755 /srv /srv/docker /srv/data /srv/apps/static /srv/backups /srv/MDs
+  local service
+  for service in "${services[@]}"; do
+    install -d -m 0755 "/srv/docker/${service}" "/srv/data/${service}"
+  done
+  chown -R "${admin_user}:${admin_user}" /srv/docker /srv/data /srv/apps /srv/backups /srv/MDs
+  ok ensure-linux-layout ',"admin_user":"'"$admin_user"'","services":'"$(json_array_from_words "${services[@]}")"
+}
+
+verb_install_nodejs22_ubuntu() {
+  [[ "$#" -eq 0 ]] || fail 2 "usage: install-nodejs22-ubuntu"
+  ubuntu_codename >/dev/null
+  require_command apt-get
+  ensure_apt_prereqs
+  install -d -m 0755 /etc/apt/keyrings
+  if [[ ! -f /etc/apt/keyrings/nodesource.gpg ]]; then
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
+    chmod a+r /etc/apt/keyrings/nodesource.gpg
+  fi
+  write_file_exact "/etc/apt/sources.list.d/nodesource.list" "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main"
+  apt-get update
+  apt-get install -y nodejs
+  ok install-nodejs22-ubuntu ',"node_version":"'"$(node --version)"'","npm_version":"'"$(npm --version)"'"'
+}
+
+verb_enable_linger() {
+  [[ "$#" -eq 2 && "$1" == "--admin-user" ]] || fail 2 "usage: enable-linger --admin-user <user>"
+  local admin_user="$2"
+  validate_user "$admin_user"
+  require_command loginctl
+  loginctl enable-linger "$admin_user"
+  ok enable-linger ',"admin_user":"'"$admin_user"'"'
+}
+
+verb_fix_ownership() {
+  [[ "$#" -eq 4 && "$1" == "--path" && "$3" == "--admin-user" ]] || fail 2 "usage: fix-ownership --path <allowed-path> --admin-user <user>"
+  local target admin_user
+  target="$(managed_realpath "$2")"
+  admin_user="$4"
+  validate_user "$admin_user"
+  [[ -e "$target" ]] || fail 2 "path does not exist: $target"
+  chown -R "${admin_user}:${admin_user}" "$target"
+  ok fix-ownership ',"path":"'"$target"'","admin_user":"'"$admin_user"'"'
+}
+
+main() {
+  require_root
+  ensure_lock
+  local verb="${1:-}"
+  [[ -n "$verb" ]] || fail 2 "missing verb"
+  shift || true
+  case "$verb" in
+    probe) verb_probe "$@" ;;
+    install-docker-engine-ubuntu) verb_install_docker_engine_ubuntu "$@" ;;
+    ensure-linux-layout) verb_ensure_linux_layout "$@" ;;
+    install-nodejs22-ubuntu) verb_install_nodejs22_ubuntu "$@" ;;
+    enable-linger) verb_enable_linger "$@" ;;
+    fix-ownership) verb_fix_ownership "$@" ;;
+    *) fail 2 "unknown verb: $verb" ;;
+  esac
+}
+
+main "$@"

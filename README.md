@@ -30,13 +30,13 @@ cd FayaaSRV
 4. Paste this prompt:
 
 ```text
-Read README.md and AGENT_PROTOCOL.md first, then use this repo as the installer: ask the question files in order, record answers in `.fss-state.yaml`, auto-detect host values when instructed, do not write outside the repo until Phase 6 (`questions/06-confirm.md`), handle Linux privilege needs inside the installer flow with sudo instead of asking me to edit sudoers, then after confirmation execute `steps/00-prereqs.md` through `steps/90-verify.md` in order and stop on any failed `## Verify` block until it is fixed.
+Read README.md and AGENT_PROTOCOL.md first, then use this repo as the installer: ask the question files in order, record answers in `.fss-state.yaml`, auto-detect host values when instructed, do not write outside the repo until Phase 6 (`questions/06-confirm.md`), use the helper-first Linux privilege flow instead of raw sudo for normal step execution, then after confirmation execute `steps/00-prereqs.md` through `steps/90-verify.md` in order and stop on any failed `## Verify` block until it is fixed.
 ```
 
 Expected flow:
 
 1. The agent asks `questions/01-platform.md` through `questions/06-confirm.md`.
-2. On fresh Linux installs, the agent may ask once for the sudo password during Step 00 for Docker or other system-level setup. Passwordless sudo is not required.
+2. On fresh Ubuntu Linux installs, the agent should prefer a preinstalled helper or install it during one bootstrap trust event in Step 00, then use the helper for later root-required work.
 3. After confirmation, the agent runs the deployment steps in order.
 4. The run is complete only when `steps/90-verify.md` passes.
 5. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
@@ -90,6 +90,10 @@ Use `.fss-state.yaml` as the only scratch state file during the interview and re
 Derived defaults that must be recorded before rendering:
 
 - `privilege_mode: sudo | root | none` on Linux, `sudo` on Mac
+- `privilege_strategy: helper | root_process | none`
+- `helper.installed: true | false`
+- `helper.version: <number>|null`
+- `helper.bootstrap_required: true | false`
 - `claw_gateway_port: 18789`
 - `cloudflared_metrics_port: 20241`
 - when `cloudflare.tunnel_uuid` is known:
@@ -135,7 +139,8 @@ with Caddy, Cloudflare Tunnel, and PostgreSQL configured in the same operating s
 
 ## Linux Privileges
 
-- Fresh Linux installs need a privileged account for Docker Engine installation and some service setup.
-- The installer should handle this inside the normal flow with one `sudo` authentication after confirmation when `privilege_mode` is `sudo`.
-- Do not require the user to edit `/etc/sudoers` or enable `NOPASSWD`.
+- Fresh Ubuntu Linux installs need a privileged account for Docker Engine installation and some service setup.
+- The standard Linux privilege path is a root-owned helper at `/usr/local/libexec/fayaasrv-root-helper` with a scoped `/etc/sudoers.d/fayaasrv-helper` rule for that path only.
+- If the helper is not already present, Step 00 may use one bootstrap trust event to run `sudo ./scripts/install-privileged-helper --admin-user <user>`, but raw `sudo` is not the normal step execution model.
+- Do not require the user to hand-edit `/etc/sudoers` or grant blanket `NOPASSWD` access.
 - The host `cloudflared` CLI should be installed without root into `~/.local/bin/cloudflared` when it is missing.

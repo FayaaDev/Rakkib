@@ -24,6 +24,11 @@ Expected high-level sections:
 platform: linux
 arch: amd64
 privilege_mode: sudo
+privilege_strategy: helper
+helper:
+  installed: true
+  version: 1
+  bootstrap_required: false
 docker_installed: true
 data_root: /srv
 docker_net: caddy_net
@@ -61,6 +66,11 @@ Derived value rules:
 - Always derive `claw_gateway_port` as `18789` unless the repo is explicitly changed to ask for a different value.
 - Always derive `cloudflared_metrics_port` as `20241` unless the repo is explicitly changed to ask for a different value.
 - Record Linux privilege capability as `privilege_mode` with one of `sudo`, `root`, or `none`. On Mac, record `privilege_mode: sudo`.
+- On Linux, also record helper state under:
+  - `privilege_strategy`: `helper`, `root_process`, or `none`
+  - `helper.installed`: whether `/usr/local/libexec/fayaasrv-root-helper` is already usable
+  - `helper.version`: helper version from `probe`, or `null` when absent
+  - `helper.bootstrap_required`: whether Step 00 must install or unlock the helper before root-required work can continue
 - When `cloudflare.tunnel_uuid` is known, derive and record:
   - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
   - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
@@ -176,10 +186,14 @@ After confirmation, run these step files in order:
 ## Privilege Rules
 
 1. Do not ask the user to edit sudoers or run pre-install shell commands outside the normal interview and deployment flow.
-2. On Linux, if `privilege_mode` is `sudo`, authenticate once after Phase 6 with `sudo -v` before Step 00 and reuse that privilege for system package installs and service setup.
-3. On Linux, if `privilege_mode` is `root`, run required system actions directly without `sudo`.
-4. On Linux, if `privilege_mode` is `none` and a step requires system changes such as installing Docker or enabling linger, stop and tell the user the install must be re-run from a privileged account.
-5. Prefer user-scoped installs when they satisfy the requirement. The host `cloudflared` CLI should be installed without root into `~/.local/bin`.
+2. On Linux, the standard privilege model is a narrow helper installed at `/usr/local/libexec/fayaasrv-root-helper` and exposed through a scoped sudoers rule for that path only.
+3. If the helper is already installed and usable, record `privilege_strategy: helper` and route all later root-required work through helper verbs only.
+4. If `privilege_mode` is `sudo` and the helper is absent, Step 00 may use one bootstrap trust event to run `sudo ./scripts/install-privileged-helper --admin-user <user>`, then must verify `sudo -n /usr/local/libexec/fayaasrv-root-helper probe` before continuing.
+5. If `privilege_mode` is `root`, Step 00 may install the helper directly with `./scripts/install-privileged-helper --admin-user <user>`, but the normal Linux interface should switch to the helper once it exists.
+6. If `privilege_mode` is `none` and the helper is absent while root-required work is still needed, stop and tell the user the install must be re-run from a privileged account or from a machine image with the helper preinstalled.
+7. After helper bootstrap, do not use raw `sudo` in later steps for Docker installs, `/srv` layout creation, Node.js installation, or linger setup. Add a reviewed helper verb first if a new privileged action is introduced.
+8. Persist the helper after a successful install so future repair and upgrade flows can reuse the same narrow privilege boundary.
+9. Prefer user-scoped installs when they satisfy the requirement. The host `cloudflared` CLI should be installed without root into `~/.local/bin`.
 
 ## Platform Rules
 
