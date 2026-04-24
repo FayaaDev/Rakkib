@@ -18,7 +18,9 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 ## Cloudflare
 
 - `{{TUNNEL_UUID}}`: Cloudflare tunnel UUID
-- `{{TUNNEL_CREDS_PATH}}`: absolute path to the tunnel credentials JSON
+- `{{SSH_SUBDOMAIN}}`: SSH subdomain routed through Cloudflare, default `ssh`
+- `{{TUNNEL_CREDS_HOST_PATH}}`: standardized host path for the tunnel credentials JSON, `{{DATA_ROOT}}/data/cloudflared/{{TUNNEL_UUID}}.json`
+- `{{TUNNEL_CREDS_CONTAINER_PATH}}`: in-container path for the tunnel credentials JSON, `/home/nonroot/.cloudflared/{{TUNNEL_UUID}}.json`
 
 ## Services
 
@@ -30,9 +32,8 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 - `{{N8N_ENCRYPTION_KEY}}`: n8n encryption key, never rotate after first use
 - `{{DBHUB_SUBDOMAIN}}`: default `dbhub`
 - `{{OPENCLAW_SUBDOMAIN}}`: default `claw`
-- `{{CLAW_GATEWAY_PORT}}`: default `18789`
-- `{{CLOUDFLARED_METRICS_PORT}}`: default `20241`
-- `{{OPENCLAW_VERSION}}`: optional version label for service docs
+- `{{CLAW_GATEWAY_PORT}}`: default `18789`, derived and recorded before rendering OpenClaw files
+- `{{CLOUDFLARED_METRICS_PORT}}`: default `20241`, derived and recorded before rendering Cloudflared files
 - `{{POSTGRES_PASSWORD}}`: Postgres superuser password
 
 ## Rule

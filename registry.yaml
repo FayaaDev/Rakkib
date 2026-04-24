@@ -46,7 +46,7 @@ services:
   - id: n8n
     required: false
     optional: true
-    image: n8n-custom:latest
+    image: n8nio/n8n:latest
     default_port: 5678
     default_subdomain: n8n
     env_keys:
@@ -54,7 +54,7 @@ services:
       - N8N_ENCRYPTION_KEY
     depends_on: [postgres]
     host_service: false
-    notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Built from custom Dockerfile."
+    notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
 
   - id: dbhub
     required: false
@@ -77,4 +77,4 @@ services:
       - CLAW_GATEWAY_PORT
     depends_on: []
     host_service: true
-    notes: "AI gateway. Runs as systemd user unit (Linux) or launchd plist (Mac). Not a Docker container."
+    notes: "AI gateway. Install from npm with node >= 22.14.0 into ~/.local/bin/openclaw, then run as a systemd user unit (Linux) or launchd plist (Mac)."

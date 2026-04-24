@@ -10,7 +10,8 @@ Run the final smoke tests for the deployed server.
 4. Confirm the Cloudflare tunnel metrics endpoint is healthy.
 5. Confirm each selected service responds on its public HTTPS hostname.
 6. Generate `{{DATA_ROOT}}/README.md` from `templates/agent-memory/SERVER_README.md.tmpl`.
-7. Append or create the local agent memory file from `templates/agent-memory/CLAUDE.md.tmpl`.
+7. Create `~/.claude` if needed and append or replace the FayaaSRV block in `~/.claude/CLAUDE.md` using `templates/agent-memory/CLAUDE.md.tmpl`.
+8. If `~/.config/github-copilot/AGENTS.md` or `~/.codex/AGENTS.md` already exist, append or replace the same FayaaSRV block there too.
 
 ## Verify
 
@@ -22,3 +23,4 @@ Run the final smoke tests for the deployed server.
 - if selected: `curl -I https://{{DBHUB_SUBDOMAIN}}.{{DOMAIN}}/`
 - if selected: `curl -I https://{{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}/`
 - `test -f {{DATA_ROOT}}/README.md`
+- `test -f ~/.claude/CLAUDE.md`

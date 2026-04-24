@@ -27,9 +27,9 @@ Use these checks after each deployment step. Do not continue if a required check
 ## Step 40
 
 - `test -f {{DATA_ROOT}}/data/cloudflared/config.yml`
-- `test -f {{TUNNEL_CREDS_PATH}}`
+- `test -f {{TUNNEL_CREDS_HOST_PATH}}`
 - `docker ps | grep cloudflared`
-- `curl -fsS http://127.0.0.1:20241/metrics`
+- `curl -fsS http://127.0.0.1:{{CLOUDFLARED_METRICS_PORT}}/metrics`
 
 ## Step 50
 
@@ -48,6 +48,8 @@ Use these checks after each deployment step. Do not continue if a required check
 
 ## Step 70
 
+- `test -x "$HOME/.local/bin/openclaw"`
+- `"$HOME/.local/bin/openclaw" --version`
 - Linux: `systemctl --user status openclaw-gateway.service --no-pager`
 - Mac: `launchctl print gui/$(id -u)/openclaw-gateway`
 - `curl -I http://localhost:{{CLAW_GATEWAY_PORT}}/`
@@ -72,3 +74,4 @@ Use these checks after each deployment step. Do not continue if a required check
 - if selected: `curl -I https://{{DBHUB_SUBDOMAIN}}.{{DOMAIN}}/`
 - if selected: `curl -I https://{{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}/`
 - `test -f {{DATA_ROOT}}/README.md`
+- `test -f ~/.claude/CLAUDE.md`

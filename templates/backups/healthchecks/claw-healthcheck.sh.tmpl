@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Claw Gateway Health Check Script
-# Purpose: Monitor Claw Gateway health and auto-restart if needed
+# OpenClaw Gateway Health Check Script
+# Purpose: Monitor OpenClaw Gateway health and auto-restart if needed
 # Schedule: Every 5 minutes via cron
 #
 
@@ -12,7 +12,7 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
 # Configuration
-SERVICE_NAME="claw-gateway.service"
+SERVICE_NAME="openclaw-gateway.service"
 HEALTH_URL="http://localhost:{{CLAW_GATEWAY_PORT}}/"
 TIMEOUT=5
 LOG_FILE="$HOME/.local/share/openclaw/claw-healthcheck.log"
@@ -105,7 +105,7 @@ restart_service() {
 
     if svcctl restart "$SERVICE_NAME"; then
         log "SUCCESS: Service restarted successfully"
-        sleep 15  # Wait for service to stabilize (Claw needs longer startup)
+        sleep 15  # Wait for service to stabilize (OpenClaw needs longer startup)
 
         # Verify restart worked
         if check_service_status && check_http_health; then

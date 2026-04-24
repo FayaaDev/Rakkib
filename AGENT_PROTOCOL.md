@@ -41,11 +41,25 @@ cloudflare:
   zone_in_cloudflare: true
   tunnel_strategy: new
   tunnel_name: myserver
-  ssh_hostname: ssh
+  ssh_subdomain: ssh
+  tunnel_uuid: null
+  tunnel_creds_host_path: null
+  tunnel_creds_container_path: null
+claw_gateway_port: 18789
+cloudflared_metrics_port: 20241
 secrets:
   mode: generate
 confirmed: false
 ```
+
+Derived value rules:
+
+- Always derive `claw_gateway_port` as `18789` unless the repo is explicitly changed to ask for a different value.
+- Always derive `cloudflared_metrics_port` as `20241` unless the repo is explicitly changed to ask for a different value.
+- When `cloudflare.tunnel_uuid` is known, derive and record:
+  - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
+  - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
+- Render templates only after every placeholder they need has either a collected value or a deterministic derived value recorded in `.fss-state.yaml`.
 
 ## Phase Order
 
@@ -92,6 +106,8 @@ After confirmation, run these step files in order:
 3. Render only the files required by the selected services.
 4. Keep generated secrets out of git-tracked files outside `.fss-state.yaml`.
 5. When a file already exists on the target machine, read it first and preserve any values that must not rotate.
+6. For Cloudflared, always normalize the credentials JSON to `{{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json` on the host and render the in-container path `/home/nonroot/.cloudflared/<tunnel_uuid>.json` into `config.yml`.
+7. For SSH over Cloudflare, always use the recorded custom subdomain value rather than assuming `ssh`.
 
 ## Platform Rules
 
@@ -111,5 +127,6 @@ The deployment is complete only when:
 
 1. The final `steps/90-verify.md` checks pass.
 2. `{{DATA_ROOT}}/README.md` has been generated on the target machine.
-3. The appropriate agent memory file has been appended or created.
-4. The selected services are reachable on their expected domains.
+3. `~/.claude/CLAUDE.md` has been created or updated with the FayaaSRV block delimited by `<!-- FAYAASRV START -->` and `<!-- FAYAASRV END -->`.
+4. If `~/.config/github-copilot/AGENTS.md` or `~/.codex/AGENTS.md` already exist, the same FayaaSRV block has been synced into them.
+5. The selected services are reachable on their expected domains.

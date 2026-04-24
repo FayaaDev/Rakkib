@@ -27,6 +27,10 @@ Optional per user choice:
 - DBHub
 - OpenClaw
 
+OpenClaw install model in v1:
+- When selected, install OpenClaw from npm as a user-scoped binary at `~/.local/bin/openclaw`.
+- Require `node >= 22.14.0` and `npm` before rendering the host service wrapper.
+
 Out of scope for v1:
 - Google Drive / rclone backups
 - OpenCode host service
@@ -55,6 +59,38 @@ Out of scope for v1:
 ## State File
 
 Use `.fss-state.yaml` as the only scratch state file during the interview and render phases. It is gitignored.
+
+Derived defaults that must be recorded before rendering:
+
+- `claw_gateway_port: 18789`
+- `cloudflared_metrics_port: 20241`
+- when `cloudflare.tunnel_uuid` is known:
+  - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
+  - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
+
+## Agent Memory Outputs
+
+Always write these targets on the target machine during `steps/90-verify.md`:
+
+- `{{DATA_ROOT}}/README.md`
+- `~/.claude/CLAUDE.md`
+
+If present, also sync the same marked FayaaSRV block into:
+
+- `~/.config/github-copilot/AGENTS.md`
+- `~/.codex/AGENTS.md`
+
+Use these markers to replace or append exactly one managed block:
+
+```md
+<!-- FAYAASRV START -->
+...
+<!-- FAYAASRV END -->
+```
+
+## Dry Run Report
+
+Record clean-machine validation runs in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
 
 ## Success Condition
 

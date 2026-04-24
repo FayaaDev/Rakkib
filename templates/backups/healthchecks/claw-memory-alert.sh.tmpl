@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Claw Memory Alert Monitor
-# Purpose: Send alerts when Claw memory usage is high
+# OpenClaw Memory Alert Monitor
+# Purpose: Send alerts when OpenClaw memory usage is high
 #
 
 set -euo pipefail
@@ -10,7 +10,7 @@ set -euo pipefail
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
-SERVICE_NAME="claw-gateway.service"
+SERVICE_NAME="openclaw-gateway.service"
 MEMORY_WARNING_GB=1.5
 MEMORY_CRITICAL_GB=1.8
 ALERT_LOG="$HOME/.local/share/openclaw/claw-memory-alerts.log"
@@ -47,7 +47,7 @@ send_alert() {
     local message="$3"
 
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] $level: Claw Memory ${memory_gb}GB - $message" | tee -a "$ALERT_LOG"
+    echo "[$timestamp] $level: OpenClaw Memory ${memory_gb}GB - $message" | tee -a "$ALERT_LOG"
 
     # TODO: Add notification integration (email, Telegram, etc.)
     # Example: notify-send "Claw Alert" "$message"

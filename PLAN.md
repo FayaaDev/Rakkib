@@ -69,12 +69,12 @@ FayaaSRV/
 
 `AGENT_PROTOCOL.md` defines six phases mirroring the `questions/` files, with one rule per phase: **ask → record answer into an in-repo scratch file `.fss-state.yaml` (gitignored) → proceed**. No writes outside the repo until Phase 6. Every `steps/*.md` file ends with a `## Verify` block the agent must pass before advancing.
 
-Cloudflare step is **guided manual**: the agent pastes exact `cloudflared tunnel login`, `tunnel create <name>`, DNS route commands and waits for the user to paste back the tunnel UUID and credentials path before rendering `config.yml`.
+Cloudflare step is **guided manual**: the agent pastes exact `cloudflared tunnel login`, `tunnel create <name>`, DNS route commands, records the tunnel UUID, and normalizes the credentials JSON into `{{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json` before rendering `config.yml` with the in-container path.
 
 ## Templating
 
 Flat placeholder set in `lib/placeholders.md`:
-`{{SERVER_NAME}}`, `{{DOMAIN}}`, `{{ADMIN_USER}}`, `{{ADMIN_EMAIL}}`, `{{LAN_IP}}`, `{{TZ}}`, `{{DATA_ROOT}}` (default `/srv` on Linux, `$HOME/srv` on Mac), `{{DOCKER_NET}}`, `{{TUNNEL_UUID}}`, `{{TUNNEL_CREDS_PATH}}`, `{{BACKUP_DIR}}`, plus per-service `{{<SVC>_SUBDOMAIN}}`, `{{<SVC>_DB_PASS}}`.
+`{{SERVER_NAME}}`, `{{DOMAIN}}`, `{{ADMIN_USER}}`, `{{ADMIN_EMAIL}}`, `{{LAN_IP}}`, `{{TZ}}`, `{{DATA_ROOT}}` (default `/srv` on Linux, `$HOME/srv` on Mac), `{{DOCKER_NET}}`, `{{TUNNEL_UUID}}`, `{{SSH_SUBDOMAIN}}`, `{{TUNNEL_CREDS_HOST_PATH}}`, `{{TUNNEL_CREDS_CONTAINER_PATH}}`, `{{BACKUP_DIR}}`, plus per-service `{{<SVC>_SUBDOMAIN}}`, `{{<SVC>_DB_PASS}}`.
 
 Rendering is done by the agent (simple find/replace) — no build tool.
 
@@ -113,7 +113,7 @@ Copy (with secrets stripped) into `templates/`:
 1. **`{{DATA_ROOT}}/README.md`** — equivalent to current `/srv/FayaaSRV/README.md`: chosen services, ports, subdomains, paths.
 2. **Global `~/.claude/CLAUDE.md`** (plus `~/.config/github-copilot/AGENTS.md`, `~/.codex/AGENTS.md` if those dirs exist) — short pointer: *"This machine follows FayaaSRV standards. Before any infra action, read @{{DATA_ROOT}}/README.md. Rules: backups first, one issue at a time, never serve from source dir, never rotate `N8N_ENCRYPTION_KEY`."*
 
-If a `CLAUDE.md` already exists, append under a marked section rather than overwriting.
+If a `CLAUDE.md` already exists, replace or append exactly one managed block delimited by `<!-- FAYAASRV START -->` and `<!-- FAYAASRV END -->` rather than overwriting the whole file.
 
 ## Mac vs Linux differences
 

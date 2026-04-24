@@ -1,9 +1,9 @@
 tunnel: {{TUNNEL_UUID}}
-credentials-file: {{TUNNEL_CREDS_PATH}}
+credentials-file: {{TUNNEL_CREDS_CONTAINER_PATH}}
 
 ingress:
   # SSH over Cloudflare Access - route to host SSH
-  - hostname: ssh.{{DOMAIN}}
+  - hostname: {{SSH_SUBDOMAIN}}.{{DOMAIN}}
     service: ssh://{{LAN_IP}}:22
 
   # Root domain

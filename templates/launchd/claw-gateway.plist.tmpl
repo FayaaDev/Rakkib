@@ -9,7 +9,7 @@
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>openclaw gateway --port {{CLAW_GATEWAY_PORT}}</string>
+    <string>exec "$HOME/.local/bin/openclaw" gateway --port {{CLAW_GATEWAY_PORT}}</string>
   </array>
 
   <key>RunAtLoad</key>

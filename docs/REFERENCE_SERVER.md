@@ -78,7 +78,7 @@ Structure per service: `docker-compose.yml`, `.env`, `.env.example`, `.gitignore
 | `0 3 * * 0` | Playwright Chrome weekly restart |
 
 OpenCode: `systemctl status opencode-serve` | `sudo systemctl restart opencode-serve`
-OpenClaw: `systemctl --user status claw-gateway` | `systemctl --user restart claw-gateway`
+OpenClaw: `systemctl --user status openclaw-gateway` | `systemctl --user restart openclaw-gateway`
 
 ---
 

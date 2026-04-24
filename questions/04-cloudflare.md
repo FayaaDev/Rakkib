@@ -46,19 +46,25 @@ If the user gives an empty answer, use `ssh`.
 
 Validation: lowercase letters, numbers, and hyphens only.
 
+Record this as the SSH subdomain only, not the full hostname.
+
 ### Q5 — Existing Tunnel Details
 
 Only ask this if Q2 was `existing`.
 
-Ask: "Do you already know the existing tunnel UUID and the credentials JSON path on this machine? (y/n)"
+Ask: "Do you already know the existing tunnel UUID? (y/n)"
 
 Accepted answers: `y` or `n`.
 
 If `y`, ask:
 - "Existing tunnel UUID?"
-- "Existing tunnel credentials file path?"
 
-If `n`, record that the values must be gathered during `steps/40-cloudflare.md` before rendering `config.yml`.
+If `n`, record that the UUID must be gathered during `steps/40-cloudflare.md` before rendering `config.yml`.
+
+Regardless of whether the tunnel is new or existing, the final credentials file location must always be normalized during `steps/40-cloudflare.md` to:
+
+- host path: `{{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
+- container path: `/home/nonroot/.cloudflared/<tunnel_uuid>.json`
 
 ---
 
@@ -69,9 +75,10 @@ cloudflare:
   zone_in_cloudflare: true
   tunnel_strategy: new      # or: existing
   tunnel_name: myserver
-  ssh_hostname: ssh
+  ssh_subdomain: ssh
   tunnel_uuid: null
-  tunnel_creds_path: null
+  tunnel_creds_host_path: null
+  tunnel_creds_container_path: null
 ```
 
-If the user provided the UUID and path, record them instead of `null`.
+If the user provided the UUID, record it and derive the two credentials paths immediately. Otherwise leave them as `null` until `steps/40-cloudflare.md`.

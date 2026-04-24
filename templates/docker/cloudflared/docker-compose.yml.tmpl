@@ -3,11 +3,11 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    command: tunnel --metrics 0.0.0.0:20241 run
+    command: tunnel --metrics 0.0.0.0:{{CLOUDFLARED_METRICS_PORT}} run
     volumes:
       - {{DATA_ROOT}}/data/cloudflared:/home/nonroot/.cloudflared
     ports:
-      - 127.0.0.1:20241:20241
+      - 127.0.0.1:{{CLOUDFLARED_METRICS_PORT}}:{{CLOUDFLARED_METRICS_PORT}}
     networks:
       - {{DOCKER_NET}}
 
