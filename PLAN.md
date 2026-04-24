@@ -26,7 +26,7 @@ FayaaSRV/
 │   ├── REFERENCE_SERVER.md       # (renamed from README.md — original FayaaLink doc)
 │   └── WORKFLOW_RULES.md         # (renamed from README2.md)
 ├── questions/
-│   ├── 01-platform.md            # Mac vs Linux; Docker Desktop vs native; arch
+│   ├── 01-platform.md            # Mac vs Linux; Docker install path; arch
 │   ├── 02-identity.md            # server name, domain, admin user, LAN IP, TZ, email
 │   ├── 03-services.md            # y/n for n8n, OpenClaw, DBHub
 │   ├── 04-cloudflare.md          # CF account, tunnel creation walkthrough, DNS
