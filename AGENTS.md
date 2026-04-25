@@ -114,6 +114,8 @@ Derived defaults that must be recorded before rendering:
 - `helper.bootstrap_required: true | false`
 - `claw_gateway_port: 18789`
 - `cloudflared_metrics_port: 20241`
+- `cloudflare.auth_method: browser_login | api_token | existing_tunnel`
+- `cloudflare.headless: true | false | null`
 - when `cloudflare.tunnel_uuid` is known:
   - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
   - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`

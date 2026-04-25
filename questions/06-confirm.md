@@ -20,6 +20,7 @@ Before asking for confirmation, present a concise summary of the recorded state 
 - timezone
 - selected optional services
 - subdomains
+- Cloudflare connection method
 - Cloudflare tunnel strategy
 - secret strategy
 
@@ -33,6 +34,12 @@ If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explic
 Make it clear in the summary when `architecture` and `LAN IP` were auto-detected from the host.
 
 If `cloudflare.zone_in_cloudflare` is `false`, the summary must explicitly say that the domain still needs Cloudflare zone setup in the intended account and that public DNS routing plus HTTPS verification will remain blocked until that is done.
+
+For Cloudflare connection method, use friendly wording:
+- If `cloudflare.auth_method` is `browser_login` and `cloudflare.headless` is `false`, show `Cloudflare connection: browser login during setup; no API token needed`.
+- If `cloudflare.auth_method` is `browser_login` and `cloudflare.headless` is `true`, show `Cloudflare connection: login link opened on another device; no API token needed`.
+- If `cloudflare.auth_method` is `api_token`, show `Cloudflare connection: advanced temporary API token during Step 40; token will not be stored in state`.
+- If `cloudflare.auth_method` is `existing_tunnel`, show `Cloudflare connection: existing tunnel details`.
 
 Then ask for one final yes/no confirmation.
 

@@ -46,6 +46,8 @@ subdomains:
   n8n: n8n
 cloudflare:
   zone_in_cloudflare: true
+  auth_method: browser_login
+  headless: false
   tunnel_strategy: new
   tunnel_name: myserver
   ssh_subdomain: ssh
@@ -65,6 +67,7 @@ Derived value rules:
 - Detect `lan_ip` from the host during Phase 2 and record the first usable LAN IPv4 address before rendering templates.
 - Always derive `claw_gateway_port` as `18789` unless the repo is explicitly changed to ask for a different value.
 - Always derive `cloudflared_metrics_port` as `20241` unless the repo is explicitly changed to ask for a different value.
+- Record Cloudflare auth as `cloudflare.auth_method` with one of `browser_login`, `api_token`, or `existing_tunnel`. Use `browser_login` as the normal path and record `cloudflare.headless` as `true` or `false` for new tunnels.
 - Record Linux privilege capability as `privilege_mode` with one of `sudo`, `root`, or `none`. On Mac, record `privilege_mode: sudo`.
 - On Linux, also record helper state under:
   - `privilege_strategy`: `helper`, `root_process`, or `none`
@@ -182,8 +185,10 @@ After confirmation, run these step files in numeric order:
 7. For SSH over Cloudflare, always use the recorded custom subdomain value rather than assuming `ssh`.
 8. A local host `cloudflared` CLI is required for tunnel login, creation, and DNS routing. The container image alone is not enough for Step 40.
 9. If the host `cloudflared` CLI is missing, install it during Step 00 into `~/.local/bin/cloudflared` and ensure later steps invoke it through `PATH` or the absolute path.
-10. If `secrets.mode` is `generate`, generate each missing secret immediately before the first step that needs it, then write it back into `.fss-state.yaml` before rendering any file that uses it.
-11. If `cloudflare.zone_in_cloudflare` is `false`, help the user complete Cloudflare zone setup using the official docs before treating public DNS routing or HTTPS verification as complete. Do not mark the deployment fully successful while Step 40 DNS routing or Step 90 public HTTPS checks are still blocked by missing Cloudflare zone ownership.
+10. Do not ask for or store a Cloudflare API token in `.fss-state.yaml` during the normal flow. Prefer `cloudflared tunnel login`; on headless servers, tell the user to open the printed login URL on another device.
+11. If `cloudflare.auth_method` is `api_token`, request the token only during Step 40, use it as a temporary environment variable, and unset it after Cloudflare work is complete. Do not persist the raw token in `.fss-state.yaml`.
+12. If `secrets.mode` is `generate`, generate each missing secret immediately before the first step that needs it, then write it back into `.fss-state.yaml` before rendering any file that uses it.
+13. If `cloudflare.zone_in_cloudflare` is `false`, help the user complete Cloudflare zone setup using the official docs before treating public DNS routing or HTTPS verification as complete. Do not mark the deployment fully successful while Step 40 DNS routing or Step 90 public HTTPS checks are still blocked by missing Cloudflare zone ownership.
 
 ## Idempotency Rules
 

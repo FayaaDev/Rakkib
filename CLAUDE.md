@@ -71,6 +71,7 @@ The standard path is a root-owned helper at `/usr/local/libexec/rakkib-root-help
 - `lan_ip` — first non-loopback IPv4 (from `hostname -I` on Linux)
 - `privilege_mode`, `privilege_strategy`, `helper.*`
 - `claw_gateway_port: 18789`, `cloudflared_metrics_port: 20241` (always these defaults)
+- `cloudflare.auth_method` — prefer `browser_login`; do not store raw Cloudflare API tokens in state
 - `cloudflare.tunnel_creds_host_path` and `cloudflare.tunnel_creds_container_path` — derive from `tunnel_uuid` once known
 
 ## Critical Rules
