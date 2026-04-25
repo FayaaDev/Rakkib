@@ -60,8 +60,8 @@ Stop on any failed Verify block and fix it before continuing.
 Expected flow:
 
 1. The agent asks `questions/01-platform.md` through `questions/06-confirm.md`.
-2. On fresh Ubuntu Linux installs, the agent detects `EUID` in Phase 1. When running as root (the canonical path), it records `privilege_mode: root` and installs the helper directly in Step 00 with no out-of-band command. When running unprivileged without a helper, it instructs the user to relaunch with `sudo -E <agent>` and stops cleanly.
-3. After confirmation, the agent runs the deployment steps in numeric order, including Step 05 preflight. The agent may remain root for the entire install (Steps 00–90).
+2. On fresh Ubuntu Linux installs, the bootstrapper (`install.sh`) normally installs the privilege helper before launching the agent, so the agent starts unprivileged and proceeds smoothly. If the agent is started manually without a helper, it detects `EUID` in Phase 1. When running as root, it records `privilege_mode: root` and installs the helper directly in Step 00. When running unprivileged without a helper, it instructs the user to relaunch with `sudo -E <agent>` and stops cleanly.
+3. After confirmation, the agent runs the deployment steps in numeric order, including Step 05 preflight.
 4. The run is complete only when `steps/90-verify.md` passes, including the final `fix-ownership` call that ensures the repo is owned by the admin user for later unprivileged maintenance.
 5. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
 
@@ -167,9 +167,9 @@ with Caddy, Cloudflare Tunnel, and PostgreSQL configured in the same operating s
 
 - Fresh Ubuntu Linux installs need a privileged account for Docker Engine installation and some service setup.
 - The standard Linux privilege path is a root-owned helper at `/usr/local/libexec/rakkib-root-helper` with a scoped `/etc/sudoers.d/rakkib-helper` rule for that path only.
-- **Canonical install path:** The user launches the agent with `sudo -E <agent-cli>` (e.g., `sudo -E claude`). The agent detects `EUID=0` in Phase 1, records `privilege_mode: root`, and installs the helper directly in Step 00 without any out-of-band command.
+- **Canonical install path:** Run `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash`. The bootstrapper installs the privilege helper automatically (via passwordless sudo on cloud VMs, or an interactive terminal prompt if needed), then launches the agent unprivileged. The agent never has to break the conversation for a privilege prompt.
+- **Manual fallback:** If the bootstrapper cannot get root access, launch the agent manually with `sudo -E <agent-cli>` (e.g., `sudo -E claude`). The agent detects `EUID=0`, records `privilege_mode: root`, and installs the helper directly in Step 00 without any out-of-band command. Under this path, the agent may remain root for the entire install (Steps 00–90); Step 90 includes a final `fix-ownership` call to ensure the repo and state file are owned by the admin user for later unprivileged maintenance.
 - If the agent is running unprivileged and no helper is present, it prints a single relaunch instruction using the agent's absolute path and stops cleanly. Do not fall back to `sudo -S` or password-in-chat.
-- Under the canonical path, the agent may remain root for the entire install (Steps 00–90). Step 90 includes a final `fix-ownership` call to ensure the repo and state file are owned by the admin user for later unprivileged maintenance.
 - The reviewed Ubuntu Docker helper path may install `acl` so it can bridge same-session Docker socket access without asking the user to run extra package installs by hand.
 - Do not require the user to hand-edit `/etc/sudoers` or grant blanket `NOPASSWD` access.
 - The host `cloudflared` CLI should be installed without root into `~/.local/bin/cloudflared` when it is missing.

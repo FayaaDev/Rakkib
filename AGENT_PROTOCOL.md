@@ -203,17 +203,18 @@ After confirmation, run these step files in numeric order:
 
 1. Do not ask the user to edit sudoers or run pre-install shell commands outside the normal interview and deployment flow.
 2. On Linux, the standard privilege model is a narrow helper installed at `/usr/local/libexec/rakkib-root-helper` and exposed through a scoped sudoers rule for that path only.
-3. **Canonical install path:** The user launches the agent with `sudo -E <agent-cli>` (e.g., `sudo -E claude`, `sudo -E opencode`). This gives the agent `EUID=0` for the install run only. The `-E` flag is required to preserve `HOME` and agent credentials.
-4. **EUID auto-detection in Phase 1:** The agent detects `EUID` at the start of `questions/01-platform.md`.
-   - If `EUID == 0`: record `privilege_mode: root`, `privilege_strategy: helper`, skip the privilege question, and proceed. Step 00 installs the helper directly without any `sudo` prefix.
-   - If `EUID != 0` and the helper is absent: the agent prints a single relaunch instruction using its own absolute executable path (e.g., `sudo -E /home/ubuntu/.local/bin/opencode`) and stops cleanly. Do not fall back to `sudo -S` or password-in-chat.
-5. If the helper is already installed and usable, record `privilege_strategy: helper` and route all later root-required work through helper verbs only.
-6. If `privilege_mode` is `root`, Step 00 runs `./scripts/install-privileged-helper --admin-user <user>` directly. The script chowns the repo back to the admin user after installation.
-7. If `privilege_mode` is `none` and the helper is absent while root-required work is still needed, stop and tell the user the install must be re-run from a privileged account or from a machine image with the helper preinstalled.
-8. Under the canonical path, the agent may run as root for the entire install (Steps 00–90). A final `/usr/local/libexec/rakkib-root-helper fix-ownership --path <repo_root> --admin-user <user>` call in Step 90 ensures the repo and state file are owned by the admin user for later unprivileged maintenance.
-9. After helper bootstrap, do not use raw `sudo` in later steps for Docker installs, `/srv` layout creation, Node.js installation, or linger setup. The reviewed Ubuntu Docker helper path may install `acl` so it can bridge same-session Docker socket access. Add a reviewed helper verb first if a new privileged action is introduced.
-10. Persist the helper after a successful install so future repair and upgrade flows can reuse the same narrow privilege boundary.
-11. Prefer user-scoped installs when they satisfy the requirement. The host `cloudflared` CLI should be installed without root into `~/.local/bin`.
+3. **Canonical install path:** Run `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash`. The bootstrapper installs the privilege helper automatically (passwordless sudo on cloud VMs, interactive terminal prompt otherwise), then launches the agent unprivileged. The agent never sees a privilege prompt.
+4. **Manual fallback:** If the bootstrapper cannot get root access, the user may launch the agent with `sudo -E <agent-cli>`. The agent detects `EUID=0` at the start of `questions/01-platform.md`, records `privilege_mode: root`, `privilege_strategy: helper`, skips the privilege question, and proceeds. Step 00 installs the helper directly without any `sudo` prefix.
+5. **EUID auto-detection in Phase 1:**
+   - If `EUID == 0`: record `privilege_mode: root`, `privilege_strategy: helper`, skip the privilege question, and proceed.
+   - If `EUID != 0` and the helper is absent: the agent prints a single relaunch instruction using its own absolute executable path and stops cleanly. Do not fall back to `sudo -S` or password-in-chat.
+6. If the helper is already installed and usable, record `privilege_strategy: helper` and route all later root-required work through helper verbs only.
+7. If `privilege_mode` is `root`, Step 00 runs `./scripts/install-privileged-helper --admin-user <user>` directly. The script chowns the repo back to the admin user after installation.
+8. If `privilege_mode` is `none` and the helper is absent while root-required work is still needed, stop and tell the user the install must be re-run from a privileged account or from a machine image with the helper preinstalled.
+9. Under the manual `sudo -E` path, the agent may run as root for the entire install (Steps 00–90). A final `/usr/local/libexec/rakkib-root-helper fix-ownership --path <repo_root> --admin-user <user>` call in Step 90 ensures the repo and state file are owned by the admin user for later unprivileged maintenance.
+10. After helper bootstrap, do not use raw `sudo` in later steps for Docker installs, `/srv` layout creation, Node.js installation, or linger setup. The reviewed Ubuntu Docker helper path may install `acl` so it can bridge same-session Docker socket access. Add a reviewed helper verb first if a new privileged action is introduced.
+11. Persist the helper after a successful install so future repair and upgrade flows can reuse the same narrow privilege boundary.
+12. Prefer user-scoped installs when they satisfy the requirement. The host `cloudflared` CLI should be installed without root into `~/.local/bin`.
 
 ## Platform Rules
 

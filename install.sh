@@ -20,11 +20,12 @@ Usage: install.sh [--dir <path>] [--repo <url>] [--branch <name>] [--skip-doctor
                   [--agent <auto|opencode|claude|codex|none>] [--no-agent] [--print-prompt]
 
 Thin Rakkib bootstrapper. It verifies basic host support, clones or updates
-the installer repo, optionally runs the doctor diagnostic, then launches an
-installed coding agent with the installer prompt. If multiple supported agents
-are available, it asks which one to use. If no supported agent is available, it
-prints the manual prompt instead. It does not replace the agent-driven installer
-workflow.
+the installer repo, optionally runs the doctor diagnostic, installs the scoped
+privilege helper on Linux (via passwordless sudo or interactive prompt), then
+launches an installed coding agent with the installer prompt. If multiple
+supported agents are available, it asks which one to use. If no supported agent
+is available, it prints the manual prompt instead. It does not replace the
+agent-driven installer workflow.
 
 Environment overrides:
   RAKKIB_DIR       target checkout path, default: $HOME/Rakkib
