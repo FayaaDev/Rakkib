@@ -1,0 +1,22 @@
+version: 1
+metadata:
+  name: Rakkib - n8n Proxy
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    identifiers:
+      name: provider-n8n
+    attrs:
+      name: provider-n8n
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      external_host: "https://{{N8N_SUBDOMAIN}}.{{DOMAIN}}"
+      mode: forward_single
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: n8n
+    attrs:
+      name: n8n
+      slug: n8n
+      provider: !Find [authentik_providers_proxy.proxyprovider, [name, provider-n8n]]

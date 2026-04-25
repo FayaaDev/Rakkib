@@ -1,0 +1,9 @@
+	# Authentik SSO
+	@authentik host {{AUTHENTIK_SUBDOMAIN}}.{{DOMAIN}}
+	handle @authentik {
+		reverse_proxy authentik-server:9000 {
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}

@@ -42,7 +42,7 @@ You'll need:
 2. A domain name on **Cloudflare** (free plan is fine).
 3. An **AI coding agent** installed on the machine — any of:
    - [Claude Code](https://claude.ai/code)
-   - [GitHub Copilot CLI](https://github.com/github/gh-copilot)
+   - [OpenCode] (https://opencode.ai)
    - [Codex CLI](https://github.com/openai/codex)
 4. `git` installed.
 

@@ -18,6 +18,7 @@ Before asking for confirmation, present a concise summary of the recorded state 
 - admin user
 - LAN IP
 - timezone
+- foundation bundle services (and any deselected from the default)
 - selected optional services
 - subdomains
 - Cloudflare connection method

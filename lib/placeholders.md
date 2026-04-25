@@ -25,9 +25,27 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 
 ## Services
 
+### Always installed
+
+- `{{POSTGRES_PASSWORD}}`: Postgres superuser password
+
+### Foundation Bundle
+
 - `{{NOCODB_SUBDOMAIN}}`: default `nocodb`
 - `{{NOCODB_DB_PASS}}`: NocoDB database password
 - `{{NOCODB_ADMIN_PASS}}`: NocoDB admin password
+- `{{NOCODB_OIDC_CLIENT_ID}}`: NocoDB OIDC client ID for Authentik; generated once during Authentik blueprint apply, then recorded in state
+- `{{NOCODB_OIDC_CLIENT_SECRET}}`: NocoDB OIDC client secret for Authentik; generated once during Authentik blueprint apply, then recorded in state
+- `{{AUTHENTIK_SUBDOMAIN}}`: default `auth`
+- `{{AUTHENTIK_SECRET_KEY}}`: Authentik secret key — random 50-char alphanumeric string, generated once, never rotate
+- `{{AUTHENTIK_DB_PASS}}`: Authentik database password
+- `{{AUTHENTIK_ADMIN_PASS}}`: Authentik bootstrap admin password; set on first run via `AUTHENTIK_BOOTSTRAP_PASSWORD`
+- `{{HOMEPAGE_SUBDOMAIN}}`: default `home`
+- `{{UPTIME_KUMA_SUBDOMAIN}}`: default `status`
+- `{{DOCKGE_SUBDOMAIN}}`: default `dockge`
+
+### Optional Services
+
 - `{{N8N_SUBDOMAIN}}`: default `n8n`
 - `{{N8N_DB_PASS}}`: n8n database password
 - `{{N8N_ENCRYPTION_KEY}}`: n8n encryption key, never rotate after first use
@@ -35,7 +53,6 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 - `{{OPENCLAW_SUBDOMAIN}}`: default `claw`
 - `{{CLAW_GATEWAY_PORT}}`: default `18789`, derived and recorded before rendering OpenClaw files
 - `{{CLOUDFLARED_METRICS_PORT}}`: default `20241`, derived and recorded before rendering Cloudflared files
-- `{{POSTGRES_PASSWORD}}`: Postgres superuser password
 
 ## Rule
 

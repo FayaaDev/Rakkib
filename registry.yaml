@@ -30,8 +30,12 @@ services:
     host_service: false
     notes: "Single postgres instance serves all services. Port bound to 127.0.0.1 only."
 
+  # --- Foundation Bundle (recommended, presented as a pre-checked group) ---
+
   - id: nocodb
-    required: true
+    required: false
+    optional: true
+    foundation: true
     image: nocodb/nocodb:latest
     default_port: 8080
     default_subdomain: nocodb
@@ -39,9 +43,64 @@ services:
       - NOCODB_DB_PASS
       - ADMIN_EMAIL
       - NOCODB_ADMIN_PASS
+      - NOCODB_OIDC_CLIENT_ID
+      - NOCODB_OIDC_CLIENT_SECRET
     depends_on: [postgres]
     host_service: false
-    notes: "No-code database UI. Always installed."
+    notes: "No-code database UI. Foundation bundle service. Supports OIDC via Authentik when auth is selected."
+
+  - id: authentik
+    required: false
+    optional: true
+    foundation: true
+    image: ghcr.io/goauthentik/server:latest
+    default_port: 9000
+    default_subdomain: auth
+    env_keys:
+      - AUTHENTIK_SECRET_KEY
+      - AUTHENTIK_DB_PASS
+      - AUTHENTIK_ADMIN_PASS
+    depends_on: [postgres]
+    host_service: false
+    notes: "SSO / auth proxy. Foundation bundle service. Deploys server + worker + redis containers. Applies blueprints for selected downstream services on first start."
+
+  - id: homepage
+    required: false
+    optional: true
+    foundation: true
+    image: ghcr.io/gethomepage/homepage:latest
+    default_port: 3000
+    default_subdomain: home
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Service dashboard. Foundation bundle service. services.yaml generated from selected service list."
+
+  - id: uptime-kuma
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/uptime-kuma:latest
+    default_port: 3001
+    default_subdomain: status
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Uptime monitoring. Foundation bundle service."
+
+  - id: dockge
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/dockge:latest
+    default_port: 5001
+    default_subdomain: dockge
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
+
+  # --- Optional Services (Tier 1) ---
 
   - id: n8n
     required: false
