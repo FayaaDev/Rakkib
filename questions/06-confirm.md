@@ -6,12 +6,12 @@
 
 ## Instructions for the Agent
 
-Before asking for confirmation, present a concise summary of the recorded state:
+Before asking for confirmation, present a concise summary of the recorded state using user-friendly labels:
 
 - platform
 - architecture
-- privilege mode
-- privilege strategy and helper status
+- system setup access
+- privilege handling
 - data root
 - server name
 - domain
@@ -22,6 +22,11 @@ Before asking for confirmation, present a concise summary of the recorded state:
 - subdomains
 - Cloudflare tunnel strategy
 - secret strategy
+
+For Linux, summarize privilege details without exposing internal state names unless the user asks:
+- If `privilege_mode` is `sudo`, show `System setup access: admin approval available` and `Privilege handling: Rakkib will use the safest available method during Step 00`.
+- If `privilege_mode` is `root`, show `System setup access: agent is running from a root/admin shell` and `Privilege handling: direct root setup, with user-owned files assigned back to the admin user`.
+- If `privilege_mode` is `none`, show `System setup access: not available` and `Install impact: Docker/system setup cannot proceed on a fresh Linux machine`.
 
 If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that Step 00 will either reuse the installed helper immediately or perform one bootstrap trust event to install or unlock it before root-required work continues.
 

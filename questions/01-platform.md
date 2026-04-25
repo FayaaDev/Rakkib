@@ -6,7 +6,7 @@
 
 ## Instructions for the Agent
 
-Ask the user the following questions in order. Linux runs ask three questions; Mac runs ask two because the Linux-only privilege question is skipped. Record answers into `.fss-state.yaml` under the keys specified. Do not advance to `questions/02-identity.md` until every required answer is recorded.
+Ask the user the following questions in order. Linux runs ask three questions; Mac runs ask two because the Linux-only system setup access question is skipped. Record answers into `.fss-state.yaml` under the keys specified. Do not advance to `questions/02-identity.md` until every required answer is recorded.
 
 On Linux, also detect whether `/usr/local/libexec/rakkib-root-helper` is already installed and usable:
 - If running as root, call `/usr/local/libexec/rakkib-root-helper probe` directly when the file exists.
@@ -33,11 +33,22 @@ Accepted answers (case-insensitive, normalize to lowercase):
 
 Re-ask if the user provides any other answer.
 
-### Q2 — Linux Privilege Mode
+### Q2 — System Setup Access
 
-Ask on Linux only: "Can this account cross the root boundary for system setup? (`sudo`/`root`/`none`)"
+Ask on Linux only:
 
-Accepted answers (case-insensitive, normalize to lowercase):
+"Rakkib needs permission to install system components like Docker and create `/srv` folders. Which option matches this machine?
+
+1. I can approve admin prompts when asked
+2. I already started this agent from a root/admin shell
+3. I cannot provide admin access on this machine"
+
+Accepted answers (case-insensitive, normalize to internal values):
+- `1`, `admin prompts`, `approve`, `sudo` -> `privilege_mode: sudo`
+- `2`, `root`, `root shell`, `sudo -i` -> `privilege_mode: root`
+- `3`, `no`, `none`, `cannot` -> `privilege_mode: none`
+
+Internal meaning:
 - `sudo` — the installer may need one bootstrap trust event in Step 00 to install or unlock the helper
 - `root` — the agent is already running as root or does not need sudo
 - `none` — the account cannot perform system-level installs
