@@ -165,9 +165,9 @@ function App() {
             </button>
           </div>
           <p className="install-note">
-            Paste the command into your terminal. Rakkib auto-detects your agent client,
-            runs a system check, and spawns a session — just answer the questions when
-            prompted.
+            Paste the above command into your terminal. Rakkib detects your AI coding agent
+            (Claude Code, Codex, or OpenCode), checks your system, opens an agent session, and
+            loads the setup prompt automatically. You just answer the questions.
           </p>
         </section>
 
