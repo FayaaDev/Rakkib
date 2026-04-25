@@ -16,28 +16,9 @@ Do not ask for a Cloudflare API token during the normal flow. The default and re
 
 ## Questions to Ask
 
-### Q1 — Zone Ownership
-
-Ask: "Is your base domain already managed in Cloudflare in the same account you will use for this server? (y/n)"
-
-Accepted answers: `y` or `n`. Normalize to boolean.
-
-If `n`, the agent must explain that the domain is not yet in a Cloudflare state this installer can manage for DNS and tunnel routing.
-
-The agent must then help the user choose the right Cloudflare zone setup before continuing:
-
-- Recommend Cloudflare primary setup (full) in most cases. This is the standard option where Cloudflare becomes the authoritative DNS provider for the whole domain.
-- Explain that CNAME setup (partial) is only available on Business or Enterprise plans and only proxies specific hostnames while primary DNS stays elsewhere.
-- Use Cloudflare's zone setup docs as the source of truth:
-  - overview: `https://developers.cloudflare.com/dns/zone-setups/`
-  - primary setup (full): `https://developers.cloudflare.com/dns/zone-setups/full-setup/`
-  - CNAME setup (partial): `https://developers.cloudflare.com/dns/zone-setups/partial-setup/`
-- Tell the user that Free and Pro plans should use primary setup (full).
-- Ask the user to finish adding the domain to the intended Cloudflare account and reach an active zone state before relying on public DNS routing and HTTPS verification.
-
-If the user wants to continue before doing that, the agent may continue the interview and local-only setup, but it must clearly state that `steps/40-cloudflare.md` and public verification in `steps/90-verify.md` cannot fully pass until the domain is managed in Cloudflare.
-
 ### Q2 — Tunnel Strategy
+
+`cloudflare.zone_in_cloudflare` was answered in phase 2 (Q2b in `questions/02-identity.md`). This phase assumes it is `true` and skips asking again unless the user said `n`, in which case the agent must explain that tunnel setup cannot proceed until the domain is active in Cloudflare.
 
 Ask: "Should Rakkib create a new Cloudflare tunnel for this server, or reuse an existing one? (new/existing)"
 
@@ -117,10 +98,10 @@ Regardless of whether the tunnel is new or existing, the final credentials file 
 
 ```yaml
 cloudflare:
-  zone_in_cloudflare: true
+  zone_in_cloudflare: true    # answered in phase 2 (Q2b in 02-identity.md)
   auth_method: browser_login # browser_login | api_token | existing_tunnel
   headless: false            # true | false | null for existing_tunnel
-  tunnel_strategy: new      # or: existing
+  tunnel_strategy: new       # or: existing
   tunnel_name: myserver
   ssh_subdomain: ssh
   tunnel_uuid: null

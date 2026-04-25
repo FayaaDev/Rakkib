@@ -30,7 +30,7 @@ For Linux, summarize privilege details without exposing internal state names unl
 - If `privilege_mode` is `root`, show `System setup access: agent is running from a root/admin shell` and `Privilege handling: direct root setup, with user-owned files assigned back to the admin user`.
 - If `privilege_mode` is `none`, show `System setup access: not available` and `Install impact: Docker/system setup cannot proceed on a fresh Linux machine`.
 
-If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that Step 00 will either reuse the installed helper immediately or perform one bootstrap trust event to install or unlock it before root-required work continues.
+If `platform` is `linux` and `privilege_mode` is `sudo`, make the summary explicit that Step 00 will reuse the installed helper if present. If the helper is absent, the agent should have already instructed a relaunch with `sudo -E <agent>` in Phase 1.
 
 Make it clear in the summary when `architecture` and `LAN IP` were auto-detected from the host.
 

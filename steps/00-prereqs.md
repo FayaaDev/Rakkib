@@ -18,8 +18,8 @@ Install or verify the base tools needed for the rest of the deployment.
 2. On Linux, detect whether root-required actions are still needed for this machine. At minimum, treat Docker Engine installation, `/srv` creation, Ubuntu Node.js installation for OpenClaw, and linger setup as helper-scoped work.
 3. On Linux, probe the helper before doing any root-required install work:
    - helper already usable -> record its version and continue with helper verbs only.
-   - helper absent and `privilege_mode: root` -> run `scripts/install-privileged-helper --admin-user {{ADMIN_USER}}`, then continue through the helper.
-   - helper absent and `privilege_mode: sudo` -> use one bootstrap trust event to run `sudo ./scripts/install-privileged-helper --admin-user {{ADMIN_USER}}`, then verify `sudo -n /usr/local/libexec/rakkib-root-helper probe` before continuing.
+   - helper absent and `privilege_mode: root` -> run `./scripts/install-privileged-helper --admin-user {{ADMIN_USER}}` directly (no `sudo` prefix), then continue through the helper. The script will chown the repo back to `{{ADMIN_USER}}` after installing the helper.
+   - helper absent and `privilege_mode: sudo` -> this state should not normally occur because Phase 1 instructs the user to relaunch with `sudo -E <agent>` when unprivileged. As a guardrail, print the relaunch instruction using the agent's absolute path and stop. Do not print a manual command to run in another terminal.
    - helper absent and `privilege_mode: none` -> continue only if Docker is already installed and no remaining Step 00 action needs root; otherwise stop.
 4. Verify `docker` and `docker compose` are available.
 5. If Docker is not installed, install Docker by platform:

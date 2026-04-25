@@ -32,6 +32,18 @@ Validation:
 - Must contain at least one dot
 - Re-ask if either condition is violated
 
+### Q2b — Cloudflare Zone
+
+Ask: "Is this base domain already managed in Cloudflare in the same account you will use for this server? (y/n)"
+
+Accepted answers: `y` or `n`. Normalize to boolean.
+
+If `n`, explain that the domain is not yet in a Cloudflare state this installer can manage, and recommend Cloudflare primary setup (full) for most cases. Free and Pro plans should use primary setup. Tell the user to finish adding the domain to Cloudflare and reach an active zone state before relying on public DNS routing and HTTPS verification.
+
+The agent may continue the interview and local-only setup, but must clearly state that `steps/40-cloudflare.md` and public verification in `steps/90-verify.md` cannot fully pass until the domain is managed in Cloudflare.
+
+Record answer as `cloudflare.zone_in_cloudflare` (Phase 4 will use this value).
+
 ### Q3 — Admin Username
 
 Ask: "What is the admin username on this machine? (e.g. ubuntu — used in file paths and service ownership)"
@@ -57,6 +69,8 @@ Validation: must be non-empty.
 ```yaml
 server_name: value
 domain: value
+cloudflare:
+  zone_in_cloudflare: true    # from Q2b
 admin_user: value
 admin_email: value
 lan_ip: value

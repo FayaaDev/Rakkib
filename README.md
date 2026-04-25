@@ -54,6 +54,8 @@ That's it. You don't need Docker, Node, or Postgres ready — the agent handles 
 
 On the machine you want to turn into your server:
 
+> **Root required for install only.** The initial install must run as root so the agent can install Docker and the scoped privilege helper. Launch your agent with `sudo -E` for this first run only. Day-to-day operation is unprivileged via the helper.
+
 **Fast bootstrap option**
 
 ```bash
@@ -89,7 +91,13 @@ git clone https://github.com/FayaaDev/Rakkib.git
 cd Rakkib
 ```
 
-**2. Start your coding agent** from inside the `Rakkib` folder.
+**2. Start your coding agent with root privileges** from inside the `Rakkib` folder:
+
+```bash
+sudo -E $(command -v claude)    # or: sudo -E $(command -v opencode), sudo -E $(command -v codex)
+```
+
+> If `command -v` returns nothing, use the full path where you installed the binary (e.g., `sudo -E /home/ubuntu/.local/bin/opencode`). The `-E` flag preserves your `HOME` and agent credentials.
 
 **3. Paste this prompt** into the agent:
 

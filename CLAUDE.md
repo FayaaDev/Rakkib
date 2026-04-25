@@ -57,8 +57,10 @@ Only render templates and write compose files for selected services.
 
 The standard path is a root-owned helper at `/usr/local/libexec/rakkib-root-helper` with a scoped `sudoers.d` rule for that path only.
 
+- **Canonical install path:** Launch the agent with `sudo -E <agent-cli>` (e.g., `sudo -E claude`). The agent detects `EUID=0` in Phase 1, records `privilege_mode: root`, and installs the helper directly in Step 00 without any out-of-band command.
 - Helper present → `privilege_strategy: helper`; route all root work through helper verbs.
-- Helper absent + `privilege_mode: sudo` → one bootstrap trust event: `sudo ./scripts/install-privileged-helper --admin-user <user>`, then verify with `sudo -n /usr/local/libexec/rakkib-root-helper probe`.
+- Helper absent + agent not root → print relaunch instruction with the agent's absolute path and stop cleanly. Do not fall back to `sudo -S` or password-in-chat.
+- Under the canonical path, the agent may run as root for the entire install (Steps 00–90). Step 90 calls `fix-ownership` to ensure the repo is admin-owned for later unprivileged maintenance.
 - After bootstrap, **do not use raw `sudo`** in later steps. Introduce a new reviewed helper verb instead.
 - `cloudflared` CLI installs without root into `~/.local/bin/cloudflared`.
 - OpenClaw installs from npm into `~/.local/bin/openclaw` (requires node ≥ 22.14.0).

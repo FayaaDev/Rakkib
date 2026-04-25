@@ -57,6 +57,8 @@ main() {
   install -o root -g root -m 0440 "$tmp_sudoers" "$SUDOERS_DEST"
   visudo -cf "$SUDOERS_DEST" >/dev/null
 
+  chown -R "${admin_user}:${admin_user}" "$repo_root"
+
   ok "$admin_user"
 }
 

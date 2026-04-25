@@ -8,7 +8,7 @@ type Service = {
   name: string
   description: string
   optional?: boolean
-  icon: 'proxy' | 'cloud' | 'database' | 'table' | 'workflow' | 'mcp' | 'claw'
+  icon: 'proxy' | 'cloud' | 'database' | 'table' | 'workflow' | 'mcp' | 'claw' | 'shield' | 'monitor' | 'docker'
 }
 
 const services: Service[] = [
@@ -31,6 +31,30 @@ const services: Service[] = [
     name: 'NocoDB',
     description: 'No-code data UI',
     icon: 'table',
+  },
+  {
+    name: 'Authentik',
+    description: 'SSO & auth proxy',
+    optional: true,
+    icon: 'shield',
+  },
+  {
+    name: 'Homepage',
+    description: 'Service dashboard',
+    optional: true,
+    icon: 'monitor',
+  },
+  {
+    name: 'Uptime Kuma',
+    description: 'Uptime monitoring',
+    optional: true,
+    icon: 'monitor',
+  },
+  {
+    name: 'Dockge',
+    description: 'Docker Compose UI',
+    optional: true,
+    icon: 'docker',
   },
   {
     name: 'n8n',
@@ -113,6 +137,36 @@ function ServiceIcon({ icon }: { icon: Service['icon'] }) {
     )
   }
 
+  if (icon === 'shield') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 4l10 4v8c0 6-5 10-10 12-5-2-10-6-10-12V8l10-4Z" />
+        <path d="M12 15l3 3 5-6" />
+      </svg>
+    )
+  }
+
+  if (icon === 'monitor') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="6" width="24" height="16" rx="2" />
+        <path d="M12 26h8M16 22v4" />
+      </svg>
+    )
+  }
+
+  if (icon === 'docker') {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="8" y="4" width="6" height="6" rx="1" />
+        <rect x="8" y="12" width="6" height="6" rx="1" />
+        <rect x="18" y="12" width="6" height="6" rx="1" />
+        <rect x="18" y="20" width="6" height="6" rx="1" />
+        <path d="M14 7h4M14 15h4M20 15v5" />
+      </svg>
+    )
+  }
+
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <rect x="6" y="8" width="20" height="16" />
@@ -167,7 +221,9 @@ function App() {
           <p className="install-note">
             Paste the above command into your terminal. Rakkib detects your AI coding agent
             (Claude Code, Codex, or OpenCode), checks your system, opens an agent session, and
-            loads the setup prompt automatically. You just answer the questions.
+            loads the setup prompt automatically. The install run launches the agent with{' '}
+            <code>sudo -E</code> so it can install Docker and the privilege helper. You just
+            answer the questions.
           </p>
         </section>
 

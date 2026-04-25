@@ -199,7 +199,11 @@ Repo path:
 
 Next step:
   cd "${INSTALL_DIR}"
-  Start your coding agent from that directory, then paste this prompt:
+
+  Start your coding agent with root privileges:
+    sudo -E \$(command -v claude)    # or: sudo -E \$(command -v opencode), sudo -E \$(command -v codex)
+
+  Then paste this prompt:
 
 --- PROMPT START ---
 $(agent_prompt)
@@ -330,6 +334,16 @@ main() {
         elif ! launch_agent; then
             print_agent_prompt
         fi
+    fi
+
+    local kernel
+    kernel="$(uname -s 2>/dev/null || true)"
+    if [[ "$kernel" == "Linux" && "${EUID:-$(id -u)}" -ne 0 ]]; then
+        log ""
+        log "Note: The Rakkib install run requires root privileges on Linux."
+        log "If the agent was not launched with sudo, relaunch it with:"
+        log "  sudo -E \$(command -v <agent-cli>)"
+        log "The -E flag preserves your HOME and agent credentials."
     fi
 }
 
