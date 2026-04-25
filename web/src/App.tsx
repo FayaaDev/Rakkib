@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 
-const installCommand = 'curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash'
+const installCommand = 'curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | sudo -E bash'
 const repoUrl = 'https://github.com/FayaaDev/Rakkib'
 
 type Service = {

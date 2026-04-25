@@ -291,7 +291,7 @@ EOF
                 log "Installing OpenCode"
                 curl -fsSL https://opencode.ai/install | bash
                 hash -r 2>/dev/null || true
-                command_exists opencode || die "OpenCode installer completed, but opencode is still not on PATH. Add it to PATH, then re-run the Rakkib bootstrapper."
+                ensure_opencode_on_path || die "OpenCode installer completed, but opencode was not found in PATH or the expected ~/.opencode/bin location. Add it to PATH, then re-run the Rakkib bootstrapper."
                 return 0
                 ;;
             ''|n|N|no|NO|No)
@@ -303,6 +303,31 @@ EOF
                 ;;
         esac
     done
+}
+
+ensure_opencode_on_path() {
+    command_exists opencode && return 0
+
+    local candidate admin_home
+    local candidates=("${HOME}/.opencode/bin")
+
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        admin_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+        if [[ -n "$admin_home" ]]; then
+            candidates+=("${admin_home}/.opencode/bin")
+        fi
+    fi
+
+    candidates+=("/root/.opencode/bin")
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -x "${candidate}/opencode" ]]; then
+            export PATH="${candidate}:${PATH}"
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 launch_agent() {
