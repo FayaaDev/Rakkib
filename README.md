@@ -61,7 +61,13 @@ On the machine you want to turn into your server:
 curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash
 ```
 
-The bootstrapper clones or updates this repo as your normal user, runs the Rakkib CLI, checks the host, then launches the agent. The full AI agent session should not run as root.
+The bootstrapper clones or updates this repo as your normal user, installs the Rakkib CLI shim, then prints the next command:
+
+```bash
+rakkib init
+```
+
+`rakkib init` checks the host, offers sudo preauthorization, then launches the agent. The full AI agent session should not run as root.
 
 When privileged setup is needed after final confirmation, Rakkib asks for sudo only for the specific system action being performed. It never stores your sudo password.
 
@@ -73,11 +79,18 @@ rakkib auth sudo
 
 The remote bootstrapper handles the startup work:
 
+- Clones or updates the repo
+- Installs `~/.local/bin/rakkib`
+- Prints `rakkib init`
+
+`rakkib init` handles the interactive setup work:
+
 - Runs the doctor diagnostic
+- Offers sudo preauthorization before the agent session
 - Launches your AI coding agent with the installer prompt
 - Keeps orchestration unprivileged and reserves sudo for post-confirmation setup actions
 
-If multiple supported agents are installed, it asks which one to use; if only one is installed, it launches that one. The agent then interviews you and performs the actual deployment.
+When you run `rakkib init`, if multiple supported agents are installed, it asks which one to use; if only one is installed, it launches that one. The agent then interviews you and performs the actual deployment.
 
 > **Do not run the agent as root by default.** Linux installs need admin access for Docker, `/srv`, and system services, but Rakkib requests that access only after Phase 6 confirmation.
 
@@ -87,16 +100,16 @@ You can override the checkout path if needed:
 curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | env RAKKIB_DIR=$HOME/Rakkib bash
 ```
 
-If you want the manual-prompt behavior instead of auto-launching an agent:
+After the bootstrapper finishes, if you want the manual-prompt behavior instead of auto-launching an agent:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash -s -- --print-prompt
+rakkib init --print-prompt
 ```
 
 To force a specific agent:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash -s -- --agent opencode
+rakkib init --agent opencode
 ```
 
 **Manual clone option** (if you prefer to clone first)
@@ -114,7 +127,7 @@ cd Rakkib
 bash install.sh
 ```
 
-**Manual agent fallback** (only if you do not want the bootstrapper to launch the agent)
+**Manual agent fallback** (only if you do not want `rakkib init` to launch the agent)
 
 ```bash
 $(command -v claude)    # or: $(command -v opencode), $(command -v codex)

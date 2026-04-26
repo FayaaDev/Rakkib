@@ -2,7 +2,7 @@
 
 Clone this repo onto the machine you want to turn into a Rakkib-style personal server kit.
 
-This repository is built for an AI coding agent to operate as the installer. The thin remote `install.sh` bootstrapper clones/updates the repo as the normal admin user when possible, hands off to `bin/rakkib`, runs doctor, and launches a supported agent CLI with the installer prompt. The agent should still interview the user, record answers in `.fss-state.yaml`, render the provided templates, and execute the step files in order.
+This repository is built for an AI coding agent to operate as the installer. The thin remote `install.sh` bootstrapper clones/updates the repo as the normal admin user when possible, installs a user-scoped `rakkib` shim, then tells the user to run `rakkib init`. The agent should still interview the user, record answers in `.fss-state.yaml`, render the provided templates, and execute the step files in order.
 
 ## Agent Prompt
 
@@ -27,11 +27,14 @@ curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | b
 
 By default, `install.sh`:
 - Clones or updates this repo
-- Hands off to `rakkib init`
+- Installs `~/.local/bin/rakkib`
+- Prints `rakkib init`
+
+Then `rakkib init`:
 - Runs the doctor diagnostic
 - Launches a supported agent CLI with the installer prompt
 
-If multiple supported agents are installed, it asks which one to use; if only one is installed, it launches that one. Use `bash -s -- --print-prompt` to only print the prompt, or `bash -s -- --agent opencode` to force a specific agent when using the curl pipe.
+If multiple supported agents are installed, `rakkib init` asks which one to use; if only one is installed, it launches that one. Use `rakkib init --print-prompt` to only print the prompt, or `rakkib init --agent opencode` to force a specific agent.
 
 **Manual clone option** (if you prefer to clone first):
 
@@ -41,7 +44,7 @@ cd Rakkib
 bash install.sh
 ```
 
-**Manual agent fallback** (only if you do not want the bootstrapper to launch the agent):
+**Manual agent fallback** (only if you do not want `rakkib init` to launch the agent):
 
 ```bash
 $(command -v claude)    # or: $(command -v opencode), $(command -v codex)
@@ -49,7 +52,7 @@ $(command -v claude)    # or: $(command -v opencode), $(command -v codex)
 
 > If `command -v` returns nothing, use the full path where you installed the binary (e.g., `/home/ubuntu/.local/bin/opencode`). Keep the full agent session under the normal admin user.
 
-Paste this prompt only when using the manual root-agent fallback or printed-prompt mode:
+Paste this prompt only when using the manual agent fallback or printed-prompt mode:
 
 ```text
 Read README.md and AGENT_PROTOCOL.md first.
@@ -66,10 +69,11 @@ Stop on any failed Verify block and fix it before continuing.
 Expected flow:
 
 1. The agent asks `questions/01-platform.md` through `questions/06-confirm.md`.
-2. On fresh Ubuntu Linux installs, `install.sh` runs unprivileged and launches the agent as the normal admin user. The agent records `privilege_mode: sudo` and `privilege_strategy: on_demand` for the normal flow.
-3. After confirmation, the agent runs the deployment steps in numeric order, including Step 05 preflight.
-4. The run is complete only when `steps/90-verify.md` passes, including the final ownership fix that ensures the repo is owned by the admin user for later unprivileged maintenance.
-5. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
+2. On fresh Ubuntu Linux installs, `install.sh` runs unprivileged, installs the CLI shim, and prints `rakkib init`.
+3. The user runs `rakkib init`, which launches the agent as the normal admin user. The agent records `privilege_mode: sudo` and `privilege_strategy: on_demand` for the normal flow.
+4. After confirmation, the agent runs the deployment steps in numeric order, including Step 05 preflight.
+5. The run is complete only when `steps/90-verify.md` passes, including the final ownership fix that ensures the repo is owned by the admin user for later unprivileged maintenance.
+6. Record the run outcome in `DRY_RUN_REPORT.md` before calling the repo ready for outside users.
 
 ## v1 Scope
 

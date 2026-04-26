@@ -34,8 +34,8 @@ Usage: install.sh [--dir <path>] [--repo <url>] [--branch <name>]
                   [--sudo-preauth <auto|always|never>]
 
 Thin Rakkib remote bootstrapper. It verifies basic host support, clones or
-updates the installer repo as the normal admin user when possible, then hands
-off to `rakkib init` for diagnostics and agent launch.
+updates the installer repo as the normal admin user when possible, installs a
+user-scoped `rakkib` shim, then prints the next command to run.
 
 Environment overrides:
   RAKKIB_DIR       target checkout path, default: $HOME/Rakkib
@@ -466,31 +466,36 @@ install_cli_shim() {
     log "Installed rakkib CLI shim at ${target}"
 }
 
-handoff_to_cli() {
+print_next_steps() {
     local cli="${INSTALL_DIR}/bin/rakkib"
+    local user_home target
+
     [[ -x "$cli" ]] || die "rakkib CLI is missing or not executable: ${cli}"
 
-    if [[ -n "$BOOTSTRAP_USER" ]]; then
-        log "Handing off to rakkib init as ${BOOTSTRAP_USER}"
-        exec sudo -u "$BOOTSTRAP_USER" -H env \
-            RAKKIB_DIR="$INSTALL_DIR" \
-            RAKKIB_REPO="$REPO_URL" \
-            RAKKIB_BRANCH="$BRANCH" \
-            RAKKIB_BOOTSTRAP_URL="$BOOTSTRAP_URL" \
-            "$cli" init "$@"
-    fi
+    user_home="${BOOTSTRAP_USER_HOME:-${HOME}}"
+    target="${user_home}/.local/bin/rakkib"
 
     if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-        warn "Running rakkib init as root. Prefer running the bootstrapper without sudo so the agent session stays unprivileged."
+        warn "Do not run rakkib init as root unless repairing a broken install. Switch to your normal admin user first."
     fi
 
-    log "Handing off to rakkib init"
-    exec env \
-        RAKKIB_DIR="$INSTALL_DIR" \
-        RAKKIB_REPO="$REPO_URL" \
-        RAKKIB_BRANCH="$BRANCH" \
-        RAKKIB_BOOTSTRAP_URL="$BOOTSTRAP_URL" \
-        "$cli" init "$@"
+    cat <<EOF
+
+Rakkib is installed.
+
+Repo:
+  ${INSTALL_DIR}
+
+CLI:
+  ${target}
+
+Next step:
+  rakkib init
+
+If rakkib is not on PATH yet, run:
+  ${target} init
+
+EOF
 }
 
 main() {
@@ -500,7 +505,7 @@ main() {
     ensure_tooling
     prepare_repo
     install_cli_shim
-    handoff_to_cli "$@"
+    print_next_steps
 }
 
 main "$@"
