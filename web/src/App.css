@@ -32,6 +32,38 @@
   object-fit: cover;
 }
 
+.lang-toggle {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-surface-dark);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  line-height: 1.5;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.lang-toggle:hover {
+  color: var(--color-accent);
+}
+
+.lang-toggle:active {
+  color: var(--color-accent-active);
+}
+
+.lang-toggle:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.site-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .github-link {
   display: inline-flex;
   align-items: center;
@@ -136,6 +168,7 @@
 }
 
 .brand:focus-visible,
+.lang-toggle:focus-visible,
 .github-link:focus-visible,
 .install-box button:focus-visible {
   outline: 1px solid var(--color-accent);

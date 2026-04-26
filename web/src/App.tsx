@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { I18nProvider } from './i18n/context'
+import { useI18n } from './i18n/useI18n'
+import { LanguageToggle } from './components/LanguageToggle'
 import './App.css'
 
 const installCommand = 'curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash'
@@ -6,92 +9,25 @@ const repoUrl = 'https://github.com/FayaaDev/Rakkib'
 
 type Service = {
   name: string
-  description: string
   optional?: boolean
   icon: 'proxy' | 'cloud' | 'database' | 'table' | 'workflow' | 'mcp' | 'photos' | 'transfer' | 'claw' | 'hermes' | 'shield' | 'monitor' | 'docker'
 }
 
 const services: Service[] = [
-  {
-    name: 'Caddy',
-    description: 'Web server',
-    icon: 'proxy',
-  },
-  {
-    name: 'Cloudflared',
-    description: 'Secure tunnel',
-    icon: 'cloud',
-  },
-  {
-    name: 'PostgreSQL',
-    description: 'Database',
-    icon: 'database',
-  },
-  {
-    name: 'NocoDB',
-    description: 'No-code data UI',
-    icon: 'table',
-  },
-  {
-    name: 'Authentik',
-    description: 'SSO & auth proxy',
-    optional: true,
-    icon: 'shield',
-  },
-  {
-    name: 'Homepage',
-    description: 'Service dashboard',
-    optional: true,
-    icon: 'monitor',
-  },
-  {
-    name: 'Uptime Kuma',
-    description: 'Uptime monitoring',
-    optional: true,
-    icon: 'monitor',
-  },
-  {
-    name: 'Dockge',
-    description: 'Docker Compose UI',
-    optional: true,
-    icon: 'docker',
-  },
-  {
-    name: 'n8n',
-    description: 'Automation',
-    optional: true,
-    icon: 'workflow',
-  },
-  {
-    name: 'DBHub',
-    description: 'Database MCP',
-    optional: true,
-    icon: 'mcp',
-  },
-  {
-    name: 'Immich',
-    description: 'Photo library',
-    optional: true,
-    icon: 'photos',
-  },
-  {
-    name: 'transfer.sh',
-    description: 'Public file sharing',
-    optional: true,
-    icon: 'transfer',
-  },
-  {
-    name: 'OpenClaw',
-    description: 'AI control UI',
-    optional: true,
-    icon: 'claw',
-  },
-  {
-    name: 'Hermes',
-    description: 'AI agent dashboard',
-    optional: true,
-    icon: 'hermes',
-  },
+  { name: 'Caddy', icon: 'proxy' },
+  { name: 'Cloudflared', icon: 'cloud' },
+  { name: 'PostgreSQL', icon: 'database' },
+  { name: 'NocoDB', icon: 'table' },
+  { name: 'Authentik', optional: true, icon: 'shield' },
+  { name: 'Homepage', optional: true, icon: 'monitor' },
+  { name: 'Uptime Kuma', optional: true, icon: 'monitor' },
+  { name: 'Dockge', optional: true, icon: 'docker' },
+  { name: 'n8n', optional: true, icon: 'workflow' },
+  { name: 'DBHub', optional: true, icon: 'mcp' },
+  { name: 'Immich', optional: true, icon: 'photos' },
+  { name: 'transfer.sh', optional: true, icon: 'transfer' },
+  { name: 'OpenClaw', optional: true, icon: 'claw' },
+  { name: 'Hermes', optional: true, icon: 'hermes' },
 ]
 
 function ServiceIcon({ icon }: { icon: Service['icon'] }) {
@@ -233,34 +169,38 @@ function GitHubIcon() {
   )
 }
 
-function App() {
-  const [copyLabel, setCopyLabel] = useState('copy')
+function AppContent() {
+  const { t, ts } = useI18n()
+  const [copyLabel, setCopyLabel] = useState(t('copy'))
 
   async function copyInstallCommand() {
     await navigator.clipboard.writeText(installCommand)
-    setCopyLabel('copied')
-    window.setTimeout(() => setCopyLabel('copy'), 1600)
+    setCopyLabel(t('copied'))
+    window.setTimeout(() => setCopyLabel(t('copy')), 1600)
   }
 
   return (
     <div className="shell">
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="Rakkib home">
+        <a className="brand" href="#top" aria-label={t('brandLabel')}>
           <img className="brand-logo" src="/logo.png" alt="Rakkib logo" width="28" height="28" />
           [rakkib]
         </a>
-        <a className="github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Rakkib on GitHub">
-          <GitHubIcon />
-          <span>GitHub</span>
-        </a>
+        <div className="site-nav">
+          <LanguageToggle />
+          <a className="github-link" href={repoUrl} target="_blank" rel="noreferrer" aria-label="Rakkib on GitHub">
+            <GitHubIcon />
+            <span>{t('github')}</span>
+          </a>
+        </div>
       </header>
 
       <main id="top">
         <section className="hero" aria-labelledby="hero-title">
           <img className="hero-logo" src="/logo-hero.png" alt="Rakkib" width="240" height="240" />
-          <h1 id="hero-title">Your own server, installed by an AI agent.</h1>
+          <h1 id="hero-title">{t('heroTitle')}</h1>
           <p className="hero-text">
-            Rakkib transforms a fresh machine into a polished self-hosted stack for apps, data, automation, photos, and secure access.
+            {t('heroText')}
           </p>
 
           <div className="install-box" aria-label="Install command">
@@ -270,14 +210,13 @@ function App() {
             </button>
           </div>
           <p className="install-note">
-            One command. Guided setup. Rakkib finds your agent, prepares the machine, and walks
-            you into a secure self-hosted stack.
+            {t('installNote')}
           </p>
         </section>
 
         <section className="services" aria-labelledby="services-title">
-          <p className="section-label">installed services</p>
-          <h2 id="services-title">Core stack included. Optional tools when you want them.</h2>
+          <p className="section-label">{t('sectionLabel')}</p>
+          <h2 id="services-title">{t('servicesTitle')}</h2>
 
           <div className="service-grid" role="list">
             {services.map((service) => (
@@ -287,15 +226,23 @@ function App() {
                 </div>
                 <div>
                   <h3>{service.name}</h3>
-                  <p>{service.description}</p>
+                  <p>{ts(service.name)}</p>
                 </div>
-                {service.optional ? <span className="badge">optional</span> : null}
+                {service.optional ? <span className="badge">{t('optional')}</span> : null}
               </article>
             ))}
           </div>
         </section>
       </main>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
   )
 }
 
