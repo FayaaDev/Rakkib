@@ -129,8 +129,15 @@ EOF
 ensure_opencode_on_path() {
   command_exists opencode && return 0
 
-  local candidate
+  local candidate sudo_home
   local candidates=("${HOME}/.opencode/bin" "${HOME}/.local/bin" "/root/.opencode/bin")
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    sudo_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+    if [[ -n "$sudo_home" ]]; then
+      candidates+=("${sudo_home}/.opencode/bin" "${sudo_home}/.local/bin")
+    fi
+  fi
+
   for candidate in "${candidates[@]}"; do
     if [[ -x "${candidate}/opencode" ]]; then
       export PATH="${candidate}:${PATH}"
@@ -172,10 +179,46 @@ select_agent() {
   esac
 }
 
+offer_install_opencode() {
+  local answer
+
+  if ensure_opencode_on_path; then
+    return 0
+  fi
+  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    warn "No supported AI agent found on PATH: opencode, claude, codex."
+    return 1
+  fi
+
+  printf 'No supported AI agent found on PATH: opencode, claude, codex.\n' > /dev/tty
+  printf 'Install OpenCode now? y/N ' > /dev/tty
+  IFS= read -r answer < /dev/tty || return 1
+  case "$answer" in
+    y|Y)
+      if ensure_opencode_on_path; then
+        return 0
+      fi
+      log "Installing OpenCode"
+      curl -fsSL https://opencode.ai/install | bash
+      hash -r 2>/dev/null || true
+      ensure_opencode_on_path
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 launch_agent_with_prompt() {
   local prompt="$1"
   local agent
-  agent="$(select_agent)" || return 1
+  if agent="$(select_agent)"; then
+    :
+  elif [[ "$AGENT_MODE" == "auto" ]] && offer_install_opencode; then
+    agent="opencode"
+  else
+    return 1
+  fi
 
   if [[ ! -r /dev/tty ]]; then
     warn "No interactive /dev/tty is available; cannot launch ${agent} safely."

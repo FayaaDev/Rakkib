@@ -22,8 +22,15 @@ else
   }
 fi
 
+SUDO_USER_HOME=""
+if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  SUDO_USER_HOME="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+fi
+
 if [[ -z "${RAKKIB_DIR:-}" && -f "AGENT_PROTOCOL.md" && -d ".git" ]]; then
   INSTALL_DIR="$(pwd)"
+elif [[ -z "${RAKKIB_DIR:-}" && "${EUID:-$(id -u)}" -eq 0 && -n "$SUDO_USER_HOME" ]]; then
+  INSTALL_DIR="${SUDO_USER_HOME}/Rakkib"
 else
   INSTALL_DIR="${RAKKIB_DIR:-${HOME}/Rakkib}"
 fi
