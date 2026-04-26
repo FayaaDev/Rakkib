@@ -211,7 +211,7 @@ Run `docs/runbooks/restore-test.md` only when explicitly performing a restore dr
 ## Privilege Rules
 
 1. Linux orchestration is user-first. The bootstrapper should be run as `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/Simplify/install.sh | bash`.
-2. Do not run the full AI agent session as root by default. If the bootstrapper is run as root, it exits and tells the user to rerun as the normal admin user.
+2. Do not run the full AI agent session as root by default. If Rakkib is run as root, it must warn and ask the user to confirm before continuing.
 3. In Phase 1 on Linux, check `id -u`. If it is not `0`, record `privilege_mode: sudo` and `privilege_strategy: on_demand`; continue the interview unprivileged.
 4. If `id -u` is `0`, record `privilege_mode: root` and `privilege_strategy: root_process`, but warn the user that root orchestration is intended only for repair/debug sessions. If `SUDO_USER` is set, ask whether to restart as that admin user before continuing.
 5. Do not try `sudo -S`, do not ask for passwords in chat, and do not store sudo credentials in `.fss-state.yaml`. If the user wants to pre-authorize sudo, ask them to run `rakkib auth sudo` in the terminal before confirmed privileged work starts.

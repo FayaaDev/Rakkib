@@ -72,17 +72,16 @@ parse_args() {
   done
 }
 
-ensure_not_root() {
+confirm_root() {
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
-    cat >&2 <<EOF
-ERROR: Run the Rakkib bootstrapper as your normal admin user, not root.
-
-Try:
-  curl -fsSL ${BOOTSTRAP_URL} | bash
-
-Rakkib asks for sudo later only for specific confirmed setup actions.
-EOF
-    exit 1
+    local answer
+    printf 'WARNING: You are running Rakkib as root.\n' > /dev/tty
+    printf 'Are you sure you want to continue y/N ' > /dev/tty
+    IFS= read -r answer < /dev/tty || exit 1
+    case "$answer" in
+      y|Y) ;;
+      *) exit 1 ;;
+    esac
   fi
 }
 
@@ -193,7 +192,7 @@ EOF
 main() {
   parse_args "$@"
   detect_platform
-  ensure_not_root
+  confirm_root
   ensure_tooling
   prepare_repo
   install_cli_shim
