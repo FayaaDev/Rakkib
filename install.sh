@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 
 REPO_URL="${RAKKIB_REPO:-https://github.com/FayaaDev/Rakkib.git}"
-BRANCH="${RAKKIB_BRANCH:-Simplify}"
-BOOTSTRAP_URL="${RAKKIB_BOOTSTRAP_URL:-https://raw.githubusercontent.com/FayaaDev/Rakkib/Simplify/install.sh}"
+BRANCH="${RAKKIB_BRANCH:-main}"
+BOOTSTRAP_URL="${RAKKIB_BOOTSTRAP_URL:-https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh}"
 
 if [[ -f "AGENT_PROTOCOL.md" && -f "lib/common.sh" ]]; then
   # shellcheck source=lib/common.sh
@@ -50,7 +50,7 @@ prints the next command to run.
 Environment overrides:
   RAKKIB_DIR       target checkout path, default: $HOME/Rakkib
   RAKKIB_REPO      git repo URL, default: https://github.com/FayaaDev/Rakkib.git
-  RAKKIB_BRANCH    git branch, default: Simplify
+  RAKKIB_BRANCH    git branch, default: main
 USAGE
 }
 
