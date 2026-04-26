@@ -5,6 +5,6 @@
 .dolt/
 *.db
 
-# Beads / Dolt files (added by bd init)
+# Beads tracking files
+.beads/
 .beads-credential-key
-.beads/export-state.json
