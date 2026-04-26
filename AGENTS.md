@@ -81,7 +81,13 @@ Always install:
 - Caddy
 - Cloudflared
 - PostgreSQL
+
+Recommended foundation bundle (preselected, user may deselect):
 - NocoDB
+- Authentik
+- Homepage
+- Uptime Kuma
+- Dockge
 
 Optional per user choice:
 - n8n
@@ -96,6 +102,12 @@ OpenClaw install model in v1:
 Immich install model in v1:
 - When selected, install CPU-only Immich using its dedicated Docker Compose stack.
 - Use Immich's dedicated Postgres/Valkey services rather than the shared Rakkib PostgreSQL instance.
+
+Foundation bundle model in v1:
+- Present the foundation bundle as a preselected checklist group in `questions/03-services.md`.
+- Record accepted foundation services in `foundation_services`.
+- Record optional add-on services in `selected_services`.
+- Only render templates and public routes for services that remain selected.
 
 Out of scope for v1:
 - Google Drive / rclone backups
@@ -132,11 +144,16 @@ Derived defaults that must be recorded before rendering:
 - `privilege_strategy: on_demand` for the normal Linux/Mac flow
 - `claw_gateway_port: 18789`
 - `cloudflared_metrics_port: 20241`
+- `foundation_services`: list of selected foundation bundle services
+- `selected_services`: list of selected optional services
 - `cloudflare.auth_method: browser_login | api_token | existing_tunnel`
 - `cloudflare.headless: true | false | null`
 - when `cloudflare.tunnel_uuid` is known:
   - `cloudflare.tunnel_creds_host_path: {{DATA_ROOT}}/data/cloudflared/<tunnel_uuid>.json`
   - `cloudflare.tunnel_creds_container_path: /home/nonroot/.cloudflared/<tunnel_uuid>.json`
+- subdomain keys for selected services only:
+  - foundation: `subdomains.nocodb`, `subdomains.auth`, `subdomains.home`, `subdomains.status`, `subdomains.dockge`
+  - optional: `subdomains.n8n`, `subdomains.dbhub`, `subdomains.immich`, `subdomains.claw`
 
 ## Agent Memory Outputs
 
@@ -168,11 +185,17 @@ Do not call the repo public-ready until the required clean-machine runs are reco
 
 On a fresh machine, an agent should be able to use only this repo plus the user's answers to bring up:
 
-- `https://{{NOCODB_SUBDOMAIN}}.<domain>`
-- optional `https://{{N8N_SUBDOMAIN}}.<domain>`
-- optional `https://{{DBHUB_SUBDOMAIN}}.<domain>`
-- optional `https://{{IMMICH_SUBDOMAIN}}.<domain>`
-- optional `https://{{OPENCLAW_SUBDOMAIN}}.<domain>`
+- foundation services the user kept selected, including:
+  - `https://{{NOCODB_SUBDOMAIN}}.<domain>`
+  - `https://{{AUTHENTIK_SUBDOMAIN}}.<domain>`
+  - `https://{{HOMEPAGE_SUBDOMAIN}}.<domain>`
+  - `https://{{UPTIME_KUMA_SUBDOMAIN}}.<domain>`
+  - `https://{{DOCKGE_SUBDOMAIN}}.<domain>`
+- optional services the user selected:
+  - `https://{{N8N_SUBDOMAIN}}.<domain>`
+  - `https://{{DBHUB_SUBDOMAIN}}.<domain>`
+  - `https://{{IMMICH_SUBDOMAIN}}.<domain>`
+  - `https://{{OPENCLAW_SUBDOMAIN}}.<domain>`
 
 with Caddy, Cloudflare Tunnel, and PostgreSQL configured in the same operating style as the source server.
 
