@@ -525,7 +525,7 @@ Run `docs/runbooks/restore-test.md` only when explicitly performing a restore dr
 3. Render Caddy changes to a candidate file and validate before replacing the active Caddyfile. Restore the previous file and stop if validation fails.
 4. Replace cron entries by Rakkib marker comments rather than appending new lines.
 5. Detect existing Cloudflare tunnels by name before creating a new tunnel.
-6. Use `./scripts/rakkib-doctor` as a standalone diagnostic and as the final Step 00 install gate.
+6. Use `rakkib doctor` as a standalone diagnostic and as the final Step 00 install gate.
 
 ## Privilege Rules
 

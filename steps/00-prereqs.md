@@ -22,7 +22,7 @@ Install or verify the base tools needed for the rest of the deployment.
 6. Verify the Docker daemon is running.
 7. Verify a local host `cloudflared` binary is available. Step 40 uses the host CLI for tunnel login, creation, and DNS routing, so the Docker image alone is not sufficient.
 8. If `cloudflared` is missing, install it into the admin user's `~/.local/bin/cloudflared` without requiring a system package, then ensure later steps can invoke it either through `PATH` or by absolute path.
-9. Run `./scripts/rakkib-doctor --json` from the repo root after prerequisites are available. Stop on any check with `"status":"fail"`; treat warnings as advisory unless they invalidate the selected install path.
+9. Run `rakkib doctor --json` from the repo root after prerequisites are available. Stop on any check with `"status":"fail"`; treat warnings as advisory unless they invalidate the selected install path.
 
 ## Platform Notes
 
@@ -47,5 +47,5 @@ Mac:
 - `docker info`
 - `curl --version`
 - `cloudflared --version` or `~/.local/bin/cloudflared --version`
-- `./scripts/rakkib-doctor`
-- `./scripts/rakkib-doctor --json`
+- `rakkib doctor`
+- `rakkib doctor --json`

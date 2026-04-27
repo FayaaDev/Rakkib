@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -169,7 +171,7 @@ class TestUninstall:
         runner = CliRunner()
         result = runner.invoke(cli, ["uninstall"], input="y\n")
         assert result.exit_code == 0
-        assert "No shim found" in result.output
+        assert "No rakkib CLI shim found" in result.output
 
 
 class TestStatus:
@@ -541,3 +543,119 @@ class TestAdd:
         content = readme.read_text()
         assert content.count("BEGIN RAKKIB AGENT MEMORY") == 1
         assert "homepage, authentik" in content
+
+
+class TestUninstallPathBlock:
+    def test_uninstall_removes_path_block(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        # Create fake .bashrc with the marker block
+        bashrc = tmp_path / ".bashrc"
+        bashrc.write_text(
+            "some config\n"
+            "# Added by Rakkib: user-local bin on PATH\n"
+            'case ":$PATH:" in\n'
+            '  *":$HOME/.local/bin:"*) ;;\n'
+            '  *) export PATH="$HOME/.local/bin:$PATH" ;;\n'
+            "esac\n"
+            "more config\n"
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["uninstall"], input="y\n")
+        assert result.exit_code == 0
+        content = bashrc.read_text()
+        assert "# Added by Rakkib" not in content
+        assert "some config" in content
+        assert "more config" in content
+
+    def test_uninstall_no_path_block(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        bashrc = tmp_path / ".bashrc"
+        bashrc.write_text("some config\n")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["uninstall"], input="y\n")
+        assert result.exit_code == 0
+        assert "No managed PATH block" in result.output
+
+
+class TestAuth:
+    def test_auth_root(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["auth", "sudo"])
+        assert result.exit_code == 0
+        assert "Already running as root" in result.output
+
+    def test_auth_sudo_ready(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 1000)
+        monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/sudo" if cmd == "sudo" else None)
+
+        runner = CliRunner()
+        with patch("subprocess.run", return_value=MagicMock(returncode=0)):
+            result = runner.invoke(cli, ["auth", "sudo"])
+        assert result.exit_code == 0
+        assert "Sudo is ready" in result.output
+
+    def test_auth_sudo_missing(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 1000)
+        monkeypatch.setattr(shutil, "which", lambda _cmd: None)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["auth", "sudo"])
+        assert result.exit_code == 1
+        assert "sudo is required" in result.output
+
+    def test_auth_help(self, tmp_path: Path):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["auth", "--help"])
+        assert result.exit_code == 0
+
+
+class TestPrivileged:
+    def test_privileged_check_root(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["privileged", "check"])
+        assert result.exit_code == 0
+        assert "running as root" in result.output
+
+    def test_privileged_check_non_root(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 1000)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["privileged", "check"])
+        assert result.exit_code == 1
+        assert "root shell" in result.output
+
+    def test_privileged_ensure_layout(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+        data_root = tmp_path / "srv"
+        state_file = tmp_path / ".fss-state.yaml"
+        state_file.write_text("admin_user: testuser\n")
+
+        runner = CliRunner()
+        with patch("shutil.chown") as mock_chown:
+            result = runner.invoke(
+                cli,
+                ["privileged", "ensure-layout", "--state", str(state_file), "--data-root", str(data_root)],
+            )
+        assert result.exit_code == 0
+        assert data_root.exists()
+        assert (data_root / "docker").exists()
+        mock_chown.assert_called()
+
+    def test_privileged_fix_repo_owner(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(os, "geteuid", lambda: 0)
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = tmp_path / ".fss-state.yaml"
+        state_file.write_text("admin_user: testuser\n")
+
+        runner = CliRunner()
+        with patch("shutil.chown") as mock_chown:
+            result = runner.invoke(
+                cli,
+                ["privileged", "fix-repo-owner", "--state", str(state_file), "--repo-dir", str(repo_dir)],
+            )
+        assert result.exit_code == 0
+        mock_chown.assert_called()

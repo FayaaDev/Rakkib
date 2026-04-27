@@ -216,3 +216,73 @@ fields:
 def test_question_schema_missing_block_raises():
     with pytest.raises(ValueError, match="No AgentSchema block found"):
         QuestionSchema.from_text("# Just markdown\nNo schema here.")
+
+
+def test_question_schema_non_dict_yaml_raises():
+    text = "## AgentSchema\n```yaml\n- not a dict\n```\n"
+    with pytest.raises(ValueError, match="AgentSchema block is not a YAML mapping"):
+        QuestionSchema.from_text(text)
+
+
+def test_question_schema_field_not_dict_raises():
+    text = """
+## AgentSchema
+```yaml
+schema_version: 1
+phase: 1
+fields:
+  - not a dict
+```
+"""
+    with pytest.raises(ValueError, match="Each field must be a YAML mapping"):
+        QuestionSchema.from_text(text)
+
+
+def test_question_schema_unknown_field_keys_ignored():
+    text = """
+## AgentSchema
+```yaml
+schema_version: 1
+phase: 1
+fields:
+  - id: test
+    type: text
+    unknown_key: should_be_ignored
+```
+"""
+    schema = QuestionSchema.from_text(text)
+    assert schema.fields[0].id == "test"
+    assert schema.fields[0].type == "text"
+    assert not hasattr(schema.fields[0], "unknown_key")
+
+
+def test_question_schema_case_insensitive_block():
+    text = """
+## agentschema
+```yaml
+schema_version: 1
+phase: 42
+fields: []
+```
+"""
+    schema = QuestionSchema.from_text(text)
+    assert schema.phase == 42
+
+
+def test_load_all_schemas_empty_directory(tmp_path):
+    schemas = load_all_schemas(tmp_path)
+    assert schemas == []
+
+
+def test_load_all_schemas_skips_files_without_schema(tmp_path):
+    (tmp_path / "no_schema.md").write_text("# Just markdown\nNo schema here.")
+    schemas = load_all_schemas(tmp_path)
+    assert schemas == []
+
+
+def test_load_all_schemas_malformed_yaml_raises(tmp_path):
+    (tmp_path / "bad_yaml.md").write_text("## AgentSchema\n```yaml\n[ unclosed\n```\n")
+    import yaml
+
+    with pytest.raises(yaml.YAMLError):
+        load_all_schemas(tmp_path)

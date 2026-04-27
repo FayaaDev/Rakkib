@@ -215,3 +215,17 @@ services:
     depends_on: [authentik]
     host_service: true
     notes: "NousResearch Hermes Agent dashboard. Install from the official installer into ~/.local/bin/hermes, then run the dashboard as a systemd user unit (Linux) or launchd plist (Mac) behind Authentik."
+
+  - id: jellyfin
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jellyfin/jellyfin:latest
+    default_port: 8096
+    default_subdomain: jellyfin
+    subdomain_key: jellyfin
+    subdomain_placeholder: JELLYFIN_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."

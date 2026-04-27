@@ -12,6 +12,31 @@ from rakkib.steps import VerificationResult
 from rakkib.steps import cron as cron_step
 
 
+class TestIsRoot:
+    @patch("rakkib.steps.cron.os.geteuid", return_value=0)
+    def test_returns_true_when_root(self, mock_geteuid):
+        assert cron_step._is_root() is True
+
+    @patch("rakkib.steps.cron.os.geteuid", return_value=1000)
+    def test_returns_false_when_not_root(self, mock_geteuid):
+        assert cron_step._is_root() is False
+
+
+class TestWriteCrontab:
+    @patch("rakkib.steps.cron.subprocess.run")
+    def test_writes_lines(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(returncode=0)
+        cron_step._write_crontab(["line1", "line2"])
+        assert mock_run.call_count == 1
+        assert "line1\nline2\n" in mock_run.call_args[1]["input"]
+
+    @patch("rakkib.steps.cron.subprocess.run")
+    def test_writes_for_user(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(returncode=0)
+        cron_step._write_crontab(["line1"], user="admin")
+        assert mock_run.call_args[0][0] == ["crontab", "-u", "admin", "-"]
+
+
 class TestInstallCronEntry:
     def test_adds_new_entry(self):
         lines = ["# existing"]
@@ -51,44 +76,6 @@ class TestRun:
     @patch("rakkib.steps.cron._write_crontab")
     @patch("rakkib.steps.cron.render_file")
     @patch("rakkib.steps.cron.shutil.copy2")
-    def test_renders_scripts_and_installs_cron(
-        self,
-        mock_copy: MagicMock,
-        mock_render: MagicMock,
-        mock_write: MagicMock,
-        mock_read: MagicMock,
-        tmp_path: Path,
-    ):
-        # render_file is mocked; ensure destination files are created so chmod succeeds
-        def _create_file(src, dst, state):
-            Path(dst).parent.mkdir(parents=True, exist_ok=True)
-            Path(dst).write_text("# rendered\n")
-
-        mock_render.side_effect = _create_file
-        mock_read.return_value = []
-        data_root = tmp_path / "srv"
-        backup_dir = data_root / "backups"
-        state = State({
-            "data_root": str(data_root),
-            "backup_dir": str(backup_dir),
-            "platform": "linux",
-            "admin_user": "admin",
-            "selected_services": [],
-        })
-        cron_step.run(state)
-
-        # Both backup scripts rendered
-        assert mock_render.call_count >= 2
-
-        # Crontab written
-        mock_write.assert_called_once()
-        written_lines = mock_write.call_args[0][0]
-        assert any("# RAKKIB: backup-local" in line for line in written_lines)
-
-    @patch("rakkib.steps.cron._crontab_lines")
-    @patch("rakkib.steps.cron._write_crontab")
-    @patch("rakkib.steps.cron.render_file")
-    @patch("rakkib.steps.cron.shutil.copy2")
     @patch("pathlib.Path.exists")
     def test_installs_openclaw_cron_when_selected(
         self,
@@ -120,6 +107,71 @@ class TestRun:
         written_lines = mock_write.call_args[0][0]
         assert any("# RAKKIB: claw-healthcheck" in line for line in written_lines)
         assert any("# RAKKIB: claw-memory-alert" in line for line in written_lines)
+
+    @patch("rakkib.steps.cron._is_root")
+    @patch("rakkib.steps.cron._crontab_lines")
+    @patch("rakkib.steps.cron._write_crontab")
+    @patch("rakkib.steps.cron.render_file")
+    @patch("rakkib.steps.cron.shutil.copy2")
+    def test_run_as_root_uses_admin_user_crontab(
+        self,
+        mock_copy: MagicMock,
+        mock_render: MagicMock,
+        mock_write: MagicMock,
+        mock_read: MagicMock,
+        mock_is_root: MagicMock,
+        tmp_path: Path,
+    ):
+        def _create_file(src, dst, state):
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            Path(dst).write_text("# rendered\n")
+
+        mock_is_root.return_value = True
+        mock_render.side_effect = _create_file
+        mock_read.return_value = []
+        data_root = tmp_path / "srv"
+        backup_dir = data_root / "backups"
+        state = State({
+            "data_root": str(data_root),
+            "backup_dir": str(backup_dir),
+            "platform": "linux",
+            "admin_user": "admin",
+            "selected_services": [],
+        })
+        cron_step.run(state)
+        mock_read.assert_called_once_with("admin")
+        mock_write.assert_called_once()
+
+    @patch("rakkib.steps.cron._crontab_lines")
+    @patch("rakkib.steps.cron._write_crontab")
+    @patch("rakkib.steps.cron.render_file")
+    @patch("rakkib.steps.cron.shutil.copy2")
+    def test_run_skips_openclaw_on_non_linux(
+        self,
+        mock_copy: MagicMock,
+        mock_render: MagicMock,
+        mock_write: MagicMock,
+        mock_read: MagicMock,
+        tmp_path: Path,
+    ):
+        def _create_file(src, dst, state):
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            Path(dst).write_text("# rendered\n")
+
+        mock_render.side_effect = _create_file
+        mock_read.return_value = []
+        data_root = tmp_path / "srv"
+        backup_dir = data_root / "backups"
+        state = State({
+            "data_root": str(data_root),
+            "backup_dir": str(backup_dir),
+            "platform": "mac",
+            "admin_user": "admin",
+            "selected_services": ["openclaw"],
+        })
+        cron_step.run(state)
+        written_lines = mock_write.call_args[0][0]
+        assert not any("claw-healthcheck" in line for line in written_lines)
 
 
 class TestVerify:
@@ -188,3 +240,53 @@ class TestVerify:
         result = cron_step.verify(state)
         assert result.ok is False
         assert "Missing cron entry" in result.message
+
+    @patch("rakkib.steps.cron._crontab_lines")
+    def test_fails_when_healthcheck_not_executable(self, mock_read: MagicMock, tmp_path: Path):
+        mock_read.return_value = [
+            "30 2 * * * /srv/backups/backup-local.sh  # RAKKIB: backup-local",
+        ]
+        data_root = tmp_path / "srv"
+        backup_dir = data_root / "backups"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "backup-local.sh").write_text("#!/bin/bash\n")
+        (backup_dir / "backup-local.sh").chmod(0o755)
+        (backup_dir / "restore-local.sh").write_text("#!/bin/bash\n")
+        (backup_dir / "restore-local.sh").chmod(0o755)
+        (backup_dir / "healthchecks").mkdir()
+        (backup_dir / "healthchecks" / "cloudflared-healthcheck.sh").write_text("#!/bin/bash\n")
+        # NOT executable
+
+        state = State({
+            "data_root": str(data_root),
+            "backup_dir": str(backup_dir),
+            "platform": "linux",
+            "selected_services": [],
+        })
+        result = cron_step.verify(state)
+        assert result.ok is False
+        assert "not executable" in result.message
+
+    @patch("rakkib.steps.cron._crontab_lines")
+    @patch("pathlib.Path.home", return_value=Path("/tmp/fake_home"))
+    def test_fails_when_openclaw_markers_missing(self, mock_home: MagicMock, mock_read: MagicMock, tmp_path: Path):
+        mock_read.return_value = [
+            "30 2 * * * /srv/backups/backup-local.sh  # RAKKIB: backup-local",
+        ]
+        data_root = tmp_path / "srv"
+        backup_dir = data_root / "backups"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "backup-local.sh").write_text("#!/bin/bash\n")
+        (backup_dir / "backup-local.sh").chmod(0o755)
+        (backup_dir / "restore-local.sh").write_text("#!/bin/bash\n")
+        (backup_dir / "restore-local.sh").chmod(0o755)
+
+        state = State({
+            "data_root": str(data_root),
+            "backup_dir": str(backup_dir),
+            "platform": "linux",
+            "selected_services": ["openclaw"],
+        })
+        result = cron_step.verify(state)
+        assert result.ok is False
+        assert "claw-healthcheck" in result.message

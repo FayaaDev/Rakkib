@@ -147,6 +147,36 @@ def test_caddy_run_validation_failure(tmp_path):
             caddy.run(state)
 
 
+def test_caddy_run_reload_failure_restores_backup(tmp_path):
+    state = _make_state(tmp_path)
+    caddy_dir = tmp_path / "docker" / "caddy"
+    caddy_dir.mkdir(parents=True)
+    (caddy_dir / "Caddyfile").write_text("old")
+
+    def side_effect(cmd, **kwargs):
+        class Result:
+            pass
+
+        r = Result()
+        r.returncode = 0
+        r.stdout = ""
+        r.stderr = ""
+        if cmd[0:4] == ["docker", "compose", "exec", "caddy"]:
+            r.returncode = 1
+            r.stderr = "reload failed"
+        elif cmd[0:3] == ["docker", "ps", "-q"]:
+            r.stdout = "abc123"
+        return r
+
+    with patch("rakkib.steps.caddy.subprocess.run") as mock_run:
+        mock_run.side_effect = side_effect
+        with pytest.raises(RuntimeError, match="Caddy reload failed"):
+            caddy.run(state)
+
+    # Backup should have been restored
+    assert (caddy_dir / "Caddyfile").read_text() == "old"
+
+
 def test_caddy_verify_success(tmp_path):
     state = _make_state(tmp_path)
 
@@ -191,3 +221,54 @@ def test_caddy_verify_failure_container_missing(tmp_path):
 
     assert result.ok is False
     assert "not running" in result.message
+
+
+def test_caddy_verify_failure_network_missing(tmp_path):
+    state = _make_state(tmp_path)
+
+    def side_effect(cmd, **kwargs):
+        class Result:
+            pass
+
+        r = Result()
+        r.returncode = 0
+        r.stdout = ""
+        r.stderr = ""
+        if cmd[0:2] == ["docker", "ps"]:
+            r.stdout = "caddy"
+        elif cmd[0:2] == ["docker", "network"] and cmd[2] == "inspect":
+            r.returncode = 1
+        return r
+
+    with patch("rakkib.steps.caddy.subprocess.run") as mock_run:
+        mock_run.side_effect = side_effect
+        result = caddy.verify(state)
+
+    assert result.ok is False
+    assert "network" in result.message.lower()
+
+
+def test_caddy_verify_failure_health_check_failed(tmp_path):
+    state = _make_state(tmp_path)
+
+    def side_effect(cmd, **kwargs):
+        class Result:
+            pass
+
+        r = Result()
+        r.returncode = 0
+        r.stdout = ""
+        r.stderr = ""
+        if cmd[0:2] == ["docker", "ps"]:
+            r.stdout = "caddy"
+        elif cmd[0:2] == ["curl", "-s"]:
+            r.returncode = 1
+            r.stdout = ""
+        return r
+
+    with patch("rakkib.steps.caddy.subprocess.run") as mock_run:
+        mock_run.side_effect = side_effect
+        result = caddy.verify(state)
+
+    assert result.ok is False
+    assert "health check failed" in result.message.lower()

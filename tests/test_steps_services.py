@@ -214,6 +214,66 @@ class TestRun:
         assert env_path.exists()
 
 
+class TestRunSingleService:
+    @patch("rakkib.steps.services._repo_dir")
+    @patch("rakkib.steps.services.compose_up")
+    @patch("rakkib.steps.services._reload_caddy")
+    def test_deploys_single_service(self, mock_reload, mock_compose, mock_repo, fake_repo, tmp_path):
+        mock_repo.return_value = fake_repo
+        data_root = tmp_path / "srv"
+        state = State({
+            "foundation_services": [],
+            "selected_services": [],
+            "data_root": str(data_root),
+            "backup_dir": str(data_root / "backups"),
+        })
+        services_step.run_single_service(state, "nocodb")
+        mock_compose.assert_called_once()
+        mock_reload.assert_called_once()
+
+    @patch("rakkib.steps.services._repo_dir")
+    def test_raises_for_unknown_service(self, mock_repo, fake_repo, tmp_path):
+        mock_repo.return_value = fake_repo
+        state = State({
+            "foundation_services": [],
+            "selected_services": [],
+            "data_root": str(tmp_path / "srv"),
+            "backup_dir": str(tmp_path / "srv" / "backups"),
+        })
+        with pytest.raises(ValueError, match="not found in registry"):
+            services_step.run_single_service(state, "unknown")
+
+
+class TestSpecialHandlers:
+    def test_handle_homepage(self, fake_repo, tmp_path):
+        tmpl = fake_repo / "templates" / "docker" / "homepage" / "services.yaml.tmpl"
+        tmpl.parent.mkdir(parents=True, exist_ok=True)
+        tmpl.write_text("# homepage services")
+        state = State({"data_root": str(tmp_path)})
+        services_step._handle_homepage(state, fake_repo, tmp_path)
+        assert (tmp_path / "data" / "homepage" / "config" / "services.yaml").exists()
+
+    def test_handle_immich(self, fake_repo, tmp_path):
+        state = State({"data_root": str(tmp_path)})
+        services_step._handle_immich(state, fake_repo, tmp_path)
+        assert (tmp_path / "data" / "immich" / "library").is_dir()
+        assert (tmp_path / "data" / "immich" / "postgres").is_dir()
+
+    def test_handle_transfer(self, fake_repo, tmp_path):
+        state = State({"data_root": str(tmp_path), "platform": "mac"})
+        services_step._handle_transfer(state, fake_repo, tmp_path)
+        assert (tmp_path / "data" / "transfer").is_dir()
+
+    def test_handle_dbhub(self, fake_repo, tmp_path):
+        tmpl = fake_repo / "templates" / "docker" / "dbhub" / "dbhub.toml.tmpl"
+        tmpl.parent.mkdir(parents=True, exist_ok=True)
+        tmpl.write_text("# dbhub config")
+        (tmp_path / "docker" / "dbhub").mkdir(parents=True, exist_ok=True)
+        state = State({"data_root": str(tmp_path)})
+        services_step._handle_dbhub(state, fake_repo, tmp_path)
+        assert (tmp_path / "docker" / "dbhub" / "dbhub.toml").exists()
+
+
 class TestVerify:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.container_running")
@@ -252,3 +312,41 @@ class TestVerify:
         result = services_step.verify(state)
         assert result.ok is False
         assert "nocodb" in result.message
+
+    @patch("rakkib.steps.services._repo_dir")
+    @patch("rakkib.steps.services.container_running")
+    @patch("rakkib.steps.services.container_publishes_port")
+    def test_port_not_published_fails(
+        self,
+        mock_port: MagicMock,
+        mock_running: MagicMock,
+        mock_repo: MagicMock,
+        fake_repo: Path,
+    ):
+        mock_repo.return_value = fake_repo
+        mock_running.return_value = True
+        mock_port.return_value = False
+        state = State({
+            "foundation_services": ["nocodb"],
+            "selected_services": [],
+        })
+        result = services_step.verify(state)
+        assert result.ok is False
+        assert "does not publish port" in result.message
+
+    @patch("rakkib.steps.services._repo_dir")
+    @patch("rakkib.steps.services.container_running")
+    @patch("rakkib.steps.services.container_publishes_port")
+    def test_authentik_container_name(self, mock_port, mock_running, mock_repo, fake_repo):
+        mock_repo.return_value = fake_repo
+        mock_running.return_value = True
+        mock_port.return_value = True
+        # Add authentik to fake registry
+        registry = services_step._load_registry()
+        state = State({
+            "foundation_services": ["authentik"],
+            "selected_services": [],
+        })
+        result = services_step.verify(state)
+        assert result.ok is True
+        mock_running.assert_any_call("authentik-server")

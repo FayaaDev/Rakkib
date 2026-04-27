@@ -1,0 +1,17 @@
+services:
+  jellyfin:
+    image: {{JELLYFIN_IMAGE}}
+    container_name: jellyfin
+    ports:
+      - "8096:8096"
+    volumes:
+      - {{DATA_ROOT}}/data/jellyfin/config:/config
+      - {{DATA_ROOT}}/data/jellyfin/cache:/cache
+      - {{DATA_ROOT}}/data/jellyfin/media:/media
+    restart: unless-stopped
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

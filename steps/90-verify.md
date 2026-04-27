@@ -8,14 +8,14 @@ Run the final smoke tests for the deployed server.
 2. Confirm PostgreSQL is accepting connections.
 3. Confirm Caddy is serving locally.
 4. Confirm the Cloudflare tunnel metrics endpoint is healthy.
-5. Run `./scripts/rakkib-doctor` again and resolve any remaining failures.
+5. Run `rakkib doctor` again and resolve any remaining failures.
 6. Confirm each selected service responds on its public HTTPS hostname. If `cloudflare.zone_in_cloudflare` is `false`, treat these checks as blocked until the domain is active in the intended Cloudflare account and do not mark the deployment fully complete.
 7. Before rendering the generated machine README, derive `{{SERVICE_SUMMARY_LINES}}` from the always-on services plus the selected foundation and optional services.
 8. Derive `{{HOST_ADDON_SUMMARY_LINES}}` from `host_addons`; use `- None` when no host addons are selected, and `- VErgo Terminal shell environment` when `vergo_terminal` is selected.
 9. Generate `{{DATA_ROOT}}/README.md` from `templates/agent-memory/SERVER_README.md.tmpl`.
 10. Create `~/.claude` if needed and append or replace the Rakkib block in `~/.claude/CLAUDE.md` using `templates/agent-memory/CLAUDE.md.tmpl`.
 11. If `~/.config/github-copilot/AGENTS.md` or `~/.codex/AGENTS.md` already exist, append or replace the same Rakkib block there too.
-12. On Linux, ensure the repo directory and any files created during the install are owned by `{{ADMIN_USER}}`. Use `sudo -n ./bin/rakkib privileged fix-repo-owner --state .fss-state.yaml --repo-dir <repo_root>` when needed, plus targeted ownership fixes for user-writable files under `{{DATA_ROOT}}`, so later maintenance can run from the normal account.
+12. On Linux, ensure the repo directory and any files created during the install are owned by `{{ADMIN_USER}}`. Use `sudo -n rakkib privileged fix-repo-owner --state .fss-state.yaml --repo-dir <repo_root>` when needed, plus targeted ownership fixes for user-writable files under `{{DATA_ROOT}}`, so later maintenance can run from the normal account.
 
 ## Verify
 
@@ -24,7 +24,7 @@ Run the final smoke tests for the deployed server.
 docker ps
 docker exec postgres pg_isready -U postgres
 curl -s http://localhost/health
-./scripts/rakkib-doctor
+rakkib doctor
 ```
 
 ```bash

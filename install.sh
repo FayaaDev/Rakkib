@@ -13,21 +13,16 @@ BOOTSTRAP_URL="${RAKKIB_BOOTSTRAP_URL:-https://raw.githubusercontent.com/FayaaDe
 # Until the release workflow is wired, this bootstrapper still clones the repo
 # and pipx-installs from the local checkout.
 
-if [[ -f "AGENT_PROTOCOL.md" && -f "lib/common.sh" ]]; then
-  # shellcheck source=lib/common.sh
-  . "lib/common.sh"
-else
-  log() { printf '==> %s\n' "$*"; }
-  warn() { printf 'WARNING: %s\n' "$*" >&2; }
-  die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-  command_exists() { command -v "$1" >/dev/null 2>&1; }
-  detect_platform() {
-    case "$(uname -s 2>/dev/null || true)" in
-      Linux|Darwin) ;;
-      *) die "unsupported OS; expected Linux or Mac" ;;
-    esac
-  }
-fi
+log() { printf '==> %s\n' "$*"; }
+warn() { printf 'WARNING: %s\n' "$*" >&2; }
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+detect_platform() {
+  case "$(uname -s 2>/dev/null || true)" in
+    Linux|Darwin) ;;
+    *) die "unsupported OS; expected Linux or Mac" ;;
+  esac
+}
 
 SUDO_USER_HOME=""
 if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
@@ -129,15 +124,32 @@ ensure_pipx() {
 
 pipx_install_repo() {
   if [[ ! -f "${INSTALL_DIR}/pyproject.toml" ]]; then
-    warn "No pyproject.toml found in ${INSTALL_DIR}; falling back to symlink shim."
+    warn "No pyproject.toml found in ${INSTALL_DIR}; falling back to fallback shim."
     return 1
   fi
   log "Installing Rakkib via pipx from ${INSTALL_DIR}"
   pipx install --force "$INSTALL_DIR" >/dev/null 2>&1 || {
-    warn "pipx install failed; falling back to symlink shim."
+    warn "pipx install failed; falling back to fallback shim."
     return 1
   }
   log "Installed rakkib CLI via pipx"
+}
+
+install_fallback_shim() {
+  local target="${HOME}/.local/bin/rakkib"
+  if [[ -e "$target" && ! -L "$target" ]]; then
+    warn "Skipping rakkib PATH shim because ${target} already exists and is not a symlink."
+    return 0
+  fi
+
+  mkdir -p "${HOME}/.local/bin"
+  cat > "$target" <<EOF
+#!/usr/bin/env bash
+export PYTHONPATH="${INSTALL_DIR}/src:\${PYTHONPATH}"
+exec python3 -m rakkib.cli "\$@"
+EOF
+  chmod +x "$target"
+  log "Installed rakkib fallback CLI shim at ${target}"
 }
 
 ensure_tooling() {
@@ -183,18 +195,6 @@ prepare_repo() {
   git clone --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
 }
 
-install_cli_shim() {
-  local target="${HOME}/.local/bin/rakkib"
-  if [[ -e "$target" && ! -L "$target" ]]; then
-    warn "Skipping rakkib PATH shim because ${target} already exists and is not a symlink."
-    return 0
-  fi
-
-  mkdir -p "${HOME}/.local/bin"
-  ln -sfn "${INSTALL_DIR}/bin/rakkib" "$target"
-  log "Installed rakkib CLI shim at ${target}"
-}
-
 ensure_shell_path() {
   local marker="# Added by Rakkib: user-local bin on PATH"
   local files=()
@@ -224,8 +224,6 @@ ensure_shell_path() {
 }
 
 print_next_steps() {
-  [[ -x "${INSTALL_DIR}/bin/rakkib" ]] || warn "rakkib bash CLI is missing or not executable: ${INSTALL_DIR}/bin/rakkib"
-
   cat <<EOF
 
 Rakkib is installed.
@@ -256,7 +254,7 @@ main() {
   ensure_pipx
   prepare_repo
   if ! pipx_install_repo; then
-    install_cli_shim
+    install_fallback_shim
   fi
   ensure_shell_path
   print_next_steps

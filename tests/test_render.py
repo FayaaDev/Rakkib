@@ -81,3 +81,45 @@ def test_render_tree(tmp_path):
     assert (dst / "a.txt").read_text() == "alpha"
     assert (dst / "sub" / "b.txt").read_text() == "beta"
     assert not (dst / "skip.txt").exists()
+
+
+def test_flatten_state_deeply_nested():
+    state = State({"a": {"b": {"c": "deep"}}})
+    flat = flatten_state(state)
+    assert flat["A.B.C"] == "deep"
+
+
+def test_flatten_state_mixed_list():
+    state = State({"items": [1, True, None, "str"]})
+    flat = flatten_state(state)
+    # List items use str(x) uniformly; scalar None becomes "" but list None becomes "None"
+    assert flat["ITEMS"] == "1\nTrue\nNone\nstr"
+
+
+def test_flatten_state_empty():
+    state = State({})
+    flat = flatten_state(state)
+    assert flat == {}
+
+
+def test_render_file_missing_parent_dir(tmp_path):
+    src = tmp_path / "src.txt.tmpl"
+    src.write_text("{{X}}")
+    dst = tmp_path / "nonexistent" / "dst.txt"
+    state = State({"x": "value"})
+    with pytest.raises(FileNotFoundError):
+        render_file(src, dst, state)
+
+
+def test_render_tree_empty_source(tmp_path):
+    src = tmp_path / "empty_src"
+    src.mkdir()
+    dst = tmp_path / "empty_dst"
+    render_tree(src, dst, State({}))
+    assert not dst.exists() or list(dst.iterdir()) == []
+
+
+def test_render_text_with_underscore_key():
+    state = State({"tunnel_uuid": "abc-123"})
+    result = render_text("UUID={{TUNNEL_UUID}}", state)
+    assert result == "UUID=abc-123"

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
-from rakkib.state import State
+from rakkib.state import State, _coerce_compare, _deep_merge, _eval_when
 
 
 def test_state_get_and_set():
@@ -234,3 +236,159 @@ def test_state_load_save(tmp_path):
     state.save(path)
     loaded = State.load(path)
     assert loaded.get("foo") == "bar"
+
+
+def test_state_load_missing_file(tmp_path):
+    path = tmp_path / "nonexistent.yaml"
+    state = State.load(path)
+    assert state.to_dict() == {}
+
+
+def test_state_load_empty_file(tmp_path):
+    path = tmp_path / "empty.yaml"
+    path.write_text("")
+    state = State.load(path)
+    assert state.to_dict() == {}
+
+
+def test_state_get_traverses_non_dict():
+    state = State({"a": "not_a_dict"})
+    assert state.get("a.b") is None
+    assert state.get("a.b", "default") == "default"
+
+
+def test_state_has_traverses_non_dict():
+    state = State({"a": "not_a_dict"})
+    assert state.has("a.b") is False
+
+
+def test_state_set_overwrites_non_dict_intermediate():
+    state = State({"a": "not_a_dict"})
+    state.set("a.b.c", 42)
+    assert state.get("a.b.c") == 42
+    assert state.get("a") == {"b": {"c": 42}}
+
+
+def test_state_to_dict_is_shallow_copy():
+    state = State({"a": {"b": 1}})
+    d = state.to_dict()
+    d["a"]["b"] = 2
+    assert state.get("a.b") == 2
+    d["c"] = 3
+    assert state.get("c") is None
+
+
+def test_state_merge_empty():
+    state = State({"a": 1})
+    state.merge({})
+    assert state.get("a") == 1
+
+
+def test_deep_merge_overwrites_dict_with_scalar():
+    base = {"a": {"b": 1}}
+    _deep_merge(base, {"a": "scalar"})
+    assert base == {"a": "scalar"}
+
+
+def test_eval_when_empty():
+    state = State({})
+    assert _eval_when("", state) is True
+
+
+def test_eval_when_and_conjunction():
+    state = State({"a": 1, "b": 2})
+    assert _eval_when("a == 1 and b == 2", state) is True
+    assert _eval_when("a == 1 and b == 3", state) is False
+
+
+def test_eval_when_is_not_null():
+    state = State({"x": 1, "y": None})
+    assert _eval_when("x is not null", state) is True
+    assert _eval_when("y is not null", state) is False
+    assert _eval_when("z is not null", state) is False
+
+
+def test_eval_when_is_null():
+    state = State({"x": 1, "y": None})
+    assert _eval_when("x is null", state) is False
+    assert _eval_when("y is null", state) is True
+    assert _eval_when("z is null", state) is True
+
+
+def test_eval_when_in_list():
+    state = State({"items": ["a", "b", "c"]})
+    assert _eval_when("a in items", state) is True
+    assert _eval_when("d in items", state) is False
+
+
+def test_eval_when_in_not_list():
+    state = State({"items": "not_a_list"})
+    assert _eval_when("a in items", state) is False
+
+
+def test_eval_when_equals():
+    state = State({"flag": True, "num": 42, "text": "hello"})
+    assert _eval_when("flag == true", state) is True
+    assert _eval_when("flag == false", state) is False
+    assert _eval_when("num == 42", state) is True
+    assert _eval_when("text == hello", state) is True
+
+
+def test_eval_when_not_equals():
+    state = State({"flag": True, "num": 42})
+    assert _eval_when("flag != false", state) is True
+    assert _eval_when("num != 42", state) is False
+
+
+def test_eval_when_unknown_returns_false():
+    state = State({"a": 1})
+    assert _eval_when("some random condition", state) is False
+
+
+def test_coerce_compare_bool():
+    assert _coerce_compare(True, "true") is True
+    assert _coerce_compare(True, "True") is True
+    assert _coerce_compare(False, "false") is True
+    assert _coerce_compare(False, "true") is False
+
+
+def test_coerce_compare_none():
+    assert _coerce_compare(None, "none") is True
+    assert _coerce_compare(None, "None") is True
+    assert _coerce_compare(None, "foo") is False
+
+
+def test_is_phase_complete_skips_non_required_fields():
+    from rakkib.schema import FieldDef, QuestionSchema
+
+    schema = QuestionSchema(
+        schema_version=1,
+        phase=1,
+        fields=[
+            FieldDef(id="optional", type="text", required=False, records=["optional"]),
+        ],
+    )
+    with patch("rakkib.state.load_all_schemas", return_value=[schema]):
+        state = State({})
+        assert state.is_phase_complete(1) is True
+
+
+def test_is_phase_complete_skips_summary_fields():
+    from rakkib.schema import FieldDef, QuestionSchema
+
+    schema = QuestionSchema(
+        schema_version=1,
+        phase=1,
+        fields=[
+            FieldDef(id="summary_field", type="summary", records=["summary_field"]),
+        ],
+    )
+    with patch("rakkib.state.load_all_schemas", return_value=[schema]):
+        state = State({})
+        assert state.is_phase_complete(1) is True
+
+
+def test_resume_phase_no_schemas():
+    with patch("rakkib.state.load_all_schemas", return_value=[]):
+        state = State({})
+        assert state.resume_phase() == 7

@@ -85,6 +85,23 @@ def test_layout_run_sudo_failure_raises(tmp_path):
                 layout.run(state)
 
 
+def test_layout_run_as_root_on_linux(tmp_path):
+    state = State(
+        {
+            "data_root": str(tmp_path),
+            "platform": "linux",
+            "admin_user": "ubuntu",
+            "foundation_services": [],
+            "selected_services": [],
+        }
+    )
+    with patch("os.geteuid", return_value=0):
+        layout.run(state)
+
+    assert (tmp_path / "docker").is_dir()
+    assert (tmp_path / "data").is_dir()
+
+
 def test_layout_verify_success(tmp_path):
     state = State({"data_root": str(tmp_path)})
     # Pre-create dirs.
@@ -101,3 +118,15 @@ def test_layout_verify_failure_missing_dir(tmp_path):
     result = layout.verify(state)
     assert result.ok is False
     assert "does not exist" in result.message
+
+
+def test_layout_verify_failure_not_writable(tmp_path):
+    state = State({"data_root": str(tmp_path)})
+    for d in ["docker", "data", "apps/static", "backups", "MDs", "logs"]:
+        (tmp_path / d).mkdir(parents=True, exist_ok=True)
+    # Remove write permission from one dir
+    (tmp_path / "docker").chmod(0o555)
+    result = layout.verify(state)
+    (tmp_path / "docker").chmod(0o755)
+    assert result.ok is False
+    assert "not writable" in result.message

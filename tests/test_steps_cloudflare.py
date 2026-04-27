@@ -419,3 +419,74 @@ class TestVerify:
 
         assert result.ok is False
         assert "tunnel info failed" in result.message
+
+
+class TestGetTunnelUuid:
+    def test_returns_uuid_when_match(self):
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=json.dumps([{"name": "my-tunnel", "id": "uuid-123"}]),
+            )
+            result = cloudflare._get_tunnel_uuid("my-tunnel")
+        assert result == "uuid-123"
+
+    def test_returns_none_when_no_match(self):
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=json.dumps([{"name": "other", "id": "uuid-456"}]),
+            )
+            result = cloudflare._get_tunnel_uuid("my-tunnel")
+        assert result is None
+
+    def test_returns_none_when_list_fails(self):
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="")
+            result = cloudflare._get_tunnel_uuid("my-tunnel")
+        assert result is None
+
+    def test_returns_none_on_json_decode_error(self):
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="not-json")
+            result = cloudflare._get_tunnel_uuid("my-tunnel")
+        assert result is None
+
+
+class TestRunExistingTunnel:
+    def test_run_existing_tunnel_with_valid_creds_skips_repair(self, tmp_path):
+        state = _make_state(
+            tmp_path,
+            cloudflare={
+                "auth_method": "existing_tunnel",
+                "tunnel_strategy": "existing",
+                "tunnel_name": "rakkib-example",
+                "zone_in_cloudflare": True,
+                "tunnel_uuid": "existing-uuid-456",
+                "tunnel_creds_host_path": str(tmp_path / "data" / "cloudflared" / "existing-uuid-456.json"),
+            },
+        )
+        cloudflared_dir = tmp_path / "data" / "cloudflared"
+        cloudflared_dir.mkdir(parents=True)
+        (cloudflared_dir / "existing-uuid-456.json").write_text("{}")
+
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            with patch("rakkib.steps.cloudflare.compose_up"):
+                mock_run.side_effect = _subprocess_side_effect()
+                cloudflare.run(state)
+
+        assert state.get("cloudflare.tunnel_uuid") == "existing-uuid-456"
+
+    def test_run_compose_up_docker_error(self, tmp_path):
+        state = _make_state(tmp_path)
+        cloudflared_dir = tmp_path / "data" / "cloudflared"
+        cloudflared_dir.mkdir(parents=True)
+        (cloudflared_dir / "test-uuid-123.json").write_text("{}")
+
+        from rakkib.docker import DockerError
+        with patch("rakkib.steps.cloudflare._run") as mock_run:
+            with patch("rakkib.steps.cloudflare.compose_up") as mock_compose:
+                mock_run.side_effect = _subprocess_side_effect()
+                mock_compose.side_effect = DockerError("boom", ["docker"], 1, "compose failed")
+                with pytest.raises(RuntimeError, match="docker compose up failed"):
+                    cloudflare.run(state)

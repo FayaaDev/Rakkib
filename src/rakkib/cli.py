@@ -1,12 +1,14 @@
 """Rakkib CLI entrypoint.
 
-Commands: init, doctor, status, add, uninstall
+Commands: init, doctor, status, add, uninstall, privileged, auth
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -29,6 +31,30 @@ from rakkib.steps import VerificationResult
 from rakkib.steps import services as services_step
 
 console = Console()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _require_root(ctx: click.Context) -> None:
+    if os.geteuid() != 0:
+        console.print("[bold red]Error:[/bold red] This helper must be run with sudo or from a root shell.")
+        ctx.exit(1)
+
+
+def _resolve_admin_user(state: State, explicit: str | None = None) -> str:
+    if explicit:
+        return explicit
+    user = state.get("admin_user")
+    if user:
+        return str(user)
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and sudo_user != "root":
+        return sudo_user
+    console.print("[red]Admin user is required; pass --admin-user or record admin_user in state.[/red]")
+    raise click.Abort()
 
 
 def _update_readme_agent_memory(repo_dir: Path, state: State) -> None:
@@ -145,6 +171,11 @@ def _run_steps(
 
     console.print("[bold green]All steps completed successfully.[/bold green]")
     return True
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
 
 @click.group()
@@ -422,27 +453,186 @@ def add(ctx: click.Context, service: str) -> None:
 
 
 @cli.command()
-@click.confirmation_option(prompt="Remove the rakkib CLI shim?")
+@click.confirmation_option(prompt="Remove the rakkib CLI shim and PATH entries?")
 def uninstall() -> None:
-    """Remove the user-scoped rakkib command shim."""
+    """Remove the user-scoped rakkib command shim and managed PATH blocks."""
     target = Path.home() / ".local" / "bin" / "rakkib"
     if target.is_symlink():
         target.unlink()
-        console.print(f"[green]Removed {target}[/green]")
+        console.print(f"[green]Removed rakkib CLI shim at {target}[/green]")
     elif target.exists():
         console.print(f"[yellow]{target} exists but is not a symlink; not removed[/yellow]")
     else:
-        console.print(f"[yellow]No shim found at {target}[/yellow]")
+        console.print(f"[yellow]No rakkib CLI shim found at {target}[/yellow]")
 
-    # TODO: remove managed PATH block from ~/.bashrc
+    marker = "# Added by Rakkib: user-local bin on PATH"
+    profiles = [
+        Path.home() / ".bashrc",
+        Path.home() / ".zshrc",
+        Path.home() / ".profile",
+    ]
+    removed_any = False
+    for profile in profiles:
+        if not profile.exists():
+            continue
+        content = profile.read_text()
+        if marker not in content:
+            continue
+        lines = content.splitlines()
+        new_lines: list[str] = []
+        skipping = False
+        for line in lines:
+            if line == marker:
+                skipping = True
+                continue
+            if skipping and line == "esac":
+                skipping = False
+                continue
+            if skipping:
+                continue
+            new_lines.append(line)
+        # Preserve single trailing newline
+        profile.write_text("\n".join(new_lines).rstrip() + "\n")
+        console.print(f"[green]Removed managed PATH block from {profile}[/green]")
+        removed_any = True
+
+    if not removed_any:
+        console.print("[yellow]No managed PATH block found in shell profiles[/yellow]")
+
+    console.print(
+        "\n[bold]Rakkib CLI shim uninstall is complete.[/bold]\n"
+        "If this terminal still resolves rakkib, refresh your shell command cache or open a new terminal:\n"
+        "  hash -r"
+    )
+
+
+@cli.command()
+@click.argument("topic", default="sudo")
+@click.pass_context
+def auth(ctx: click.Context, topic: str) -> None:
+    """Validate sudo readiness."""
+    if topic not in ("sudo", "-h", "--help", ""):
+        console.print(f"[red]Unknown auth topic: {topic}[/red]")
+        ctx.exit(1)
+
+    if topic in ("-h", "--help", ""):
+        click.echo("Usage: rakkib auth sudo\n\nValidates sudo for this terminal with sudo -v.")
+        return
+
+    if os.geteuid() == 0:
+        console.print("[green]Already running as root; no sudo validation needed.[/green]")
+        return
+
+    if shutil.which("sudo") is None:
+        console.print("[red]sudo is required for privileged setup actions on Linux.[/red]")
+        ctx.exit(1)
+
+    console.print("[dim]Validating sudo for this terminal. Rakkib will not store your password.[/dim]")
+    result = subprocess.run(["sudo", "-v"], capture_output=True, text=True)
+    if result.returncode == 0:
+        console.print("[green]Sudo is ready for this terminal according to your system sudo policy.[/green]")
+    else:
+        console.print("[red]Sudo validation failed. Run `sudo -v` in your terminal first.[/red]")
+        ctx.exit(1)
+
+
+@cli.group()
+@click.pass_context
+def privileged(ctx: click.Context) -> None:
+    """Root-only helper actions."""
+    if os.geteuid() != 0:
+        console.print("[bold red]Error:[/bold red] This helper must be run with sudo or from a root shell.")
+        ctx.exit(1)
+
+
+@privileged.command(name="check")
+def privileged_check() -> None:
+    """Verify the helper is running as root."""
+    console.print("[green]Privileged helper is running as root.[/green]")
+
+
+@privileged.command(name="ensure-layout")
+@click.option("--state", "state_path", type=click.Path(path_type=Path), default=".fss-state.yaml")
+@click.option("--data-root", type=str, default="")
+@click.option("--admin-user", type=str, default="")
+@click.pass_context
+def privileged_ensure_layout(
+    ctx: click.Context, state_path: Path, data_root: str, admin_user: str
+) -> None:
+    """Create the base Rakkib data directories."""
+    state = State.load(state_path)
+    if not data_root:
+        data_root = state.get("data_root") or "/srv"
+    user = _resolve_admin_user(state, admin_user)
+
+    console.print(f"[bold green]Creating Rakkib layout under {data_root}[/bold green]")
+    paths = [
+        Path(data_root),
+        Path(data_root) / "docker",
+        Path(data_root) / "data",
+        Path(data_root) / "apps" / "static",
+        Path(data_root) / "backups",
+        Path(data_root) / "MDs",
+    ]
+    for p in paths:
+        p.mkdir(parents=True, exist_ok=True)
+        shutil.chown(p, user=user, group=None)
+        # Recursively chown for existing contents
+        for root, dirs, files in os.walk(p):
+            for d in dirs:
+                shutil.chown(os.path.join(root, d), user=user, group=None)
+            for f in files:
+                shutil.chown(os.path.join(root, f), user=user, group=None)
+    console.print(f"[green]Layout created and owned by {user}.[/green]")
+
+
+@privileged.command(name="fix-repo-owner")
+@click.option("--state", "state_path", type=click.Path(path_type=Path), default=".fss-state.yaml")
+@click.option("--admin-user", type=str, default="")
+@click.option("--repo-dir", type=click.Path(path_type=Path), default="")
+@click.pass_context
+def privileged_fix_repo_owner(
+    ctx: click.Context, state_path: Path, admin_user: str, repo_dir: Path
+) -> None:
+    """Assign the repo back to the admin user."""
+    state = State.load(state_path)
+    user = _resolve_admin_user(state, admin_user)
+    if not repo_dir:
+        repo_dir = ctx.obj["repo_dir"]
+    if not repo_dir.exists():
+        console.print(f"[red]Repo directory does not exist: {repo_dir}[/red]")
+        ctx.exit(1)
+
+    console.print(f"[bold green]Assigning {repo_dir} to {user}[/bold green]")
+    for root, dirs, files in os.walk(repo_dir):
+        for d in dirs:
+            shutil.chown(os.path.join(root, d), user=user, group=None)
+        for f in files:
+            shutil.chown(os.path.join(root, f), user=user, group=None)
+    shutil.chown(repo_dir, user=user, group=None)
+    console.print(f"[green]Repo ownership updated to {user}.[/green]")
 
 
 @cli.command()
 @click.pass_context
-def auth(ctx: click.Context) -> None:
-    """Validate sudo readiness."""
-    console.print("[bold green]Rakkib auth[/bold green]")
-    # TODO: sudo -v validation
+def prompt(ctx: click.Context) -> None:
+    """Print the canonical installer prompt."""
+    console.print(
+        "\n[bold]Rakkib is ready for the agent-driven install flow.[/bold]\n"
+        f"\nRepo path:\n  {ctx.obj['repo_dir']}\n"
+        "\nPaste this prompt if your agent was not launched automatically:\n"
+        "\n--- PROMPT START ---\n"
+        "Read AGENT_PROTOCOL.md first.\n"
+        "Use this repo as the installer.\n"
+        "Ask me the question files in order.\n"
+        "Record answers in .fss-state.yaml.\n"
+        "Do not write outside the repo until Phase 6 (questions/06-confirm.md).\n"
+        "Run the agent as the normal admin user. On Linux, do not run the full agent session as root; after confirmation, request sudo only for specific privileged setup actions.\n"
+        "For privileged commands, use sudo -n so expired authorization fails fast instead of hanging for a password inside the agent session.\n"
+        "After confirmation, execute the numbered files in steps/ in order. Run docs/runbooks/restore-test.md only if restore testing is explicitly requested.\n"
+        "Stop on any failed Verify block and fix it before continuing.\n"
+        "--- PROMPT END ---\n"
+    )
 
 
 def main() -> None:

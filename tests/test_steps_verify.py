@@ -30,21 +30,20 @@ class TestCollectVerifications:
 
     def test_handles_import_error(self):
         state = State({})
-        # postgres module missing
-        with patch.dict(
-            "sys.modules",
-            {
-                "rakkib.steps.layout": MagicMock(verify=lambda s: VerificationResult.success("layout")),
-                "rakkib.steps.caddy": MagicMock(verify=lambda s: VerificationResult.success("caddy")),
-                # no postgres
-                "rakkib.steps.services": MagicMock(verify=lambda s: VerificationResult.success("services")),
-                "rakkib.steps.cron": MagicMock(verify=lambda s: VerificationResult.success("cron")),
-            },
-        ):
-            with patch("builtins.__import__", side_effect=lambda name, *args, **kwargs: __import__(name) if name in sys.modules else (_ for _ in ()).throw(ImportError(name))):
-                results = verify_step._collect_verifications(state)
-        # Actually, _collect_verifications catches ImportError itself, so we need to let __import__ work normally
-        # but remove postgres from sys.modules. Let's patch __import__ more carefully.
+        real_import = __import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "rakkib.steps.postgres":
+                raise ImportError(name)
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            results = verify_step._collect_verifications(state)
+
+        postgres_results = [r for r in results if r.step == "postgres"]
+        assert len(postgres_results) == 1
+        assert postgres_results[0].ok is False
+        assert "not found" in postgres_results[0].message
 
     def test_handles_failure(self):
         state = State({})
