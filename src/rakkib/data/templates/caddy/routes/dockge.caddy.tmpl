@@ -4,10 +4,6 @@
 		forward_auth authentik-server:9000 {
 			uri /outpost.goauthentik.io/auth/caddy
 			copy_headers X-authentik-username X-authentik-groups X-authentik-email X-authentik-uid
-			@goauthentik_proxy_response header_regexp X-Goauthentik-Auth-Redirect (.*)
-			handle_response @goauthentik_proxy_response {
-				redir * {http.response.header.X-Goauthentik-Auth-Redirect} 302
-			}
 		}
 		reverse_proxy dockge:5001
 	}
