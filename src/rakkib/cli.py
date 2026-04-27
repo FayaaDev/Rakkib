@@ -12,6 +12,9 @@ from pathlib import Path
 import click
 from rich.console import Console
 
+from rakkib.interview import run_interview
+from rakkib.state import State
+
 console = Console()
 
 
@@ -33,8 +36,20 @@ def init(ctx: click.Context, agent: str, print_prompt: bool, no_agent: bool) -> 
     """Run diagnostics and launch the setup wizard."""
     if no_agent:
         agent = "none"
+
+    if agent != "auto":
+        console.print(f"[dim]Note: --agent / --no-agent options are not yet implemented (requested: {agent}).[/dim]")
+    if print_prompt:
+        console.print("[dim]Note: --print-prompt is not yet implemented.[/dim]")
+
     console.print("[bold green]Rakkib init[/bold green]")
-    # TODO: implement interview + step orchestration (Wave 1-2)
+
+    repo_dir = ctx.obj["repo_dir"]
+    state_path = repo_dir / ".fss-state.yaml"
+    state = State.load(state_path)
+    state = run_interview(state, questions_dir=repo_dir / "questions")
+    state.save(state_path)
+    console.print("[bold green]Interview complete. State saved to .fss-state.yaml[/bold green]")
 
 
 @cli.command()

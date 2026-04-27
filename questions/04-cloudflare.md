@@ -77,7 +77,7 @@ fields:
       - cloudflare.headless
   - id: tunnel_name
     type: text
-    prompt: What tunnel name should be used? [default: <server_name>]
+    prompt: "What tunnel name should be used? [default: <server_name>]"
     default_from_state: server_name
     validate:
       non_empty: true
@@ -85,7 +85,7 @@ fields:
       - cloudflare.tunnel_name
   - id: ssh_subdomain
     type: text
-    prompt: What subdomain should route to SSH over Cloudflare? [default: ssh]
+    prompt: "What subdomain should route to SSH over Cloudflare? [default: ssh]"
     default: ssh
     validate:
       pattern: ^[a-z0-9-]+$

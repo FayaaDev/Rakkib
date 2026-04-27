@@ -43,9 +43,9 @@ usage() {
   cat <<'USAGE'
 Usage: install.sh [--dir <path>] [--repo <url>] [--branch <name>]
 
-Thin Rakkib bootstrapper. It clones or updates the installer repo, installs a
-user-scoped `rakkib` shim, adds ~/.local/bin to ~/.bashrc when needed, and
-prints the next command to run.
+Rakkib bootstrapper. It clones or updates the installer repo, ensures python3
+and pipx are present, pipx-installs the Rakkib CLI, adds ~/.local/bin to
+shell profiles when needed, and prints the next command to run.
 
 Environment overrides:
   RAKKIB_DIR       target checkout path, default: $HOME/Rakkib
@@ -94,6 +94,43 @@ confirm_root() {
       *) exit 1 ;;
     esac
   fi
+}
+
+ensure_python3() {
+  command_exists python3 || die "python3 is required. Install python3, then rerun this bootstrapper."
+}
+
+ensure_pipx() {
+  if command_exists pipx; then
+    return 0
+  fi
+  log "pipx not found. Installing pipx..."
+  if command_exists pip3; then
+    pip3 install --user pipx >/dev/null 2>&1 || true
+  fi
+  if ! command_exists pipx && command_exists python3; then
+    python3 -m pip install --user pipx >/dev/null 2>&1 || true
+  fi
+  if command_exists pipx; then
+    return 0
+  fi
+  if [[ -x "${HOME}/.local/bin/pipx" ]]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
+  command_exists pipx || die "pipx installation failed. Install pipx manually (https://pypa.github.io/pipx/) and rerun."
+}
+
+pipx_install_repo() {
+  if [[ ! -f "${INSTALL_DIR}/pyproject.toml" ]]; then
+    warn "No pyproject.toml found in ${INSTALL_DIR}; falling back to symlink shim."
+    return 1
+  fi
+  log "Installing Rakkib via pipx from ${INSTALL_DIR}"
+  pipx install --force "$INSTALL_DIR" >/dev/null 2>&1 || {
+    warn "pipx install failed; falling back to symlink shim."
+    return 1
+  }
+  log "Installed rakkib CLI via pipx"
 }
 
 ensure_tooling() {
@@ -151,31 +188,36 @@ install_cli_shim() {
   log "Installed rakkib CLI shim at ${target}"
 }
 
-ensure_bash_path() {
-  local profile="${HOME}/.bashrc"
+ensure_shell_path() {
   local marker="# Added by Rakkib: user-local bin on PATH"
+  local files=()
 
-  if [[ ":${PATH}:" == *":${HOME}/.local/bin:"* ]]; then
-    return 0
-  fi
-  if [[ -f "$profile" ]] && grep -Fq "$marker" "$profile"; then
-    return 0
+  [[ -f "${HOME}/.bashrc" ]] && files+=("${HOME}/.bashrc")
+  [[ -f "${HOME}/.zshrc" ]] && files+=("${HOME}/.zshrc")
+  [[ -f "${HOME}/.profile" ]] && files+=("${HOME}/.profile")
+
+  if [[ ${#files[@]} -eq 0 ]]; then
+    files=("${HOME}/.bashrc")
   fi
 
-  touch "$profile"
-  {
-    printf '\n%s\n' "$marker"
-    printf '%s\n' 'case ":$PATH:" in'
-    printf '%s\n' '  *":$HOME/.local/bin:"*) ;;'
-    printf '%s\n' '  *) export PATH="$HOME/.local/bin:$PATH" ;;'
-    printf '%s\n' 'esac'
-  } >> "$profile"
-  log "Added ~/.local/bin to PATH in ${profile}"
+  for profile in "${files[@]}"; do
+    if [[ -f "$profile" ]] && grep -Fq "$marker" "$profile" 2>/dev/null; then
+      continue
+    fi
+    touch "$profile"
+    {
+      printf '\n%s\n' "$marker"
+      printf '%s\n' 'case ":$PATH:" in'
+      printf '%s\n' '  *":$HOME/.local/bin:"*) ;;'
+      printf '%s\n' '  *) export PATH="$HOME/.local/bin:$PATH" ;;'
+      printf '%s\n' 'esac'
+    } >> "$profile"
+    log "Added ~/.local/bin to PATH in ${profile}"
+  done
 }
 
 print_next_steps() {
-  local target="${HOME}/.local/bin/rakkib"
-  [[ -x "${INSTALL_DIR}/bin/rakkib" ]] || die "rakkib CLI is missing or not executable: ${INSTALL_DIR}/bin/rakkib"
+  [[ -x "${INSTALL_DIR}/bin/rakkib" ]] || warn "rakkib bash CLI is missing or not executable: ${INSTALL_DIR}/bin/rakkib"
 
   cat <<EOF
 
@@ -184,18 +226,16 @@ Rakkib is installed.
 Repo:
   ${INSTALL_DIR}
 
-CLI:
-  ${target}
-
 Next step:
   rakkib init
 
-If rakkib is not on PATH yet, run:
+If rakkib is not on PATH yet, run one of:
   source ~/.bashrc
-  rakkib init
+  source ~/.zshrc
+  source ~/.profile
 
 Or run it directly:
-  ${target} init
+  ${HOME}/.local/bin/rakkib init
 
 EOF
 }
@@ -205,9 +245,13 @@ main() {
   detect_platform
   confirm_root
   ensure_tooling
+  ensure_python3
+  ensure_pipx
   prepare_repo
-  install_cli_shim
-  ensure_bash_path
+  if ! pipx_install_repo; then
+    install_cli_shim
+  fi
+  ensure_shell_path
   print_next_steps
 }
 

@@ -23,15 +23,15 @@ class FieldDef:
     when: str | None = None
     default: Any = None
     default_from_state: str | None = None
-    default_from_host: str | None = None
+    default_from_host: Any = None
     canonical_values: list[str] = field(default_factory=list)
     numeric_aliases: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, list[str]] = field(default_factory=dict)
     accepted_inputs: dict[str, Any] = field(default_factory=dict)
-    validate: str | None = None
+    validate: dict[str, Any] | str | None = None
     detect: dict[str, Any] = field(default_factory=dict)
     normalize: str | dict[str, Any] | None = None
-    derive_from: str | None = None
+    derive_from: str | list[str] | None = None
     value: Any = None
     derived_value: dict[str, Any] = field(default_factory=dict)
     value_if_true: Any = None
@@ -39,6 +39,10 @@ class FieldDef:
     repeat_for: str | None = None
     summary_fields: list[str] = field(default_factory=list)
     entries: list[dict[str, Any]] = field(default_factory=list)
+    source: str | None = None
+    template: str | None = None
+    selection_mode: str | None = None
+    required: bool = True
 
 
 @dataclass
@@ -51,8 +55,8 @@ class QuestionSchema:
     writes_state: list[str] = field(default_factory=list)
     fields: list[FieldDef] = field(default_factory=list)
     service_catalog: dict[str, Any] = field(default_factory=dict)
-    rules: list[str] = field(default_factory=list)
-    execution_generated_only: bool = False
+    rules: list[dict[str, Any]] = field(default_factory=list)
+    execution_generated_only: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_file(cls, path: Path | str) -> "QuestionSchema":
@@ -74,7 +78,14 @@ class QuestionSchema:
         if not isinstance(raw, dict):
             raise ValueError("AgentSchema block is not a YAML mapping")
 
-        fields = [FieldDef(**f) for f in raw.get("fields", [])]
+        known_field_keys = {f.name for f in FieldDef.__dataclass_fields__.values()}
+        fields = []
+        for f in raw.get("fields", []):
+            if not isinstance(f, dict):
+                raise ValueError("Each field must be a YAML mapping")
+            filtered = {k: v for k, v in f.items() if k in known_field_keys}
+            fields.append(FieldDef(**filtered))
+
         return cls(
             schema_version=raw.get("schema_version", 1),
             phase=raw.get("phase", 0),
@@ -83,7 +94,7 @@ class QuestionSchema:
             fields=fields,
             service_catalog=raw.get("service_catalog", {}),
             rules=raw.get("rules", []),
-            execution_generated_only=raw.get("execution_generated_only", False),
+            execution_generated_only=raw.get("execution_generated_only", []),
         )
 
 
