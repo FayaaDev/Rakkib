@@ -20,7 +20,7 @@ rakkib init
 
 ## How It Works
 
-- `install.sh` only clones or updates this repo, installs `~/.local/bin/rakkib`, and prints the next command.
+- `install.sh` clones or updates this repo, creates a project-local venv at `<repo>/.venv`, installs the rakkib package into it, and symlinks `~/.local/bin/rakkib` to the venv's entry-point script.
 - `rakkib init` runs diagnostics and launches a supported agent with the canonical installer prompt.
 - `AGENT_PROTOCOL.md` is the normative installer spec. It defines the interview, state, rendering, privilege, execution, and verification rules.
 - `registry.yaml` is the canonical service catalog.
