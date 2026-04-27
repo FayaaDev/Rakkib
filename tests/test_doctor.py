@@ -14,6 +14,7 @@ from rakkib.doctor import (
     CheckResult,
     attempt_fix_cloudflared,
     attempt_fix_docker,
+    attempt_fix_compose,
     check_arch,
     check_cloudflared_binary,
     check_compose,
@@ -344,21 +345,72 @@ class TestAttemptFixDocker:
     @patch("platform.system", return_value="Linux")
     @patch("rakkib.doctor._command_exists", return_value=True)
     @patch("subprocess.run")
-    def test_apt_success(self, mock_run: MagicMock, _cmd: MagicMock, _system: MagicMock):
-        mock_run.side_effect = [
-            MagicMock(returncode=0, stderr=""),
-            MagicMock(returncode=0, stderr=""),
-        ]
+    def test_get_docker_success(self, mock_run: MagicMock, _cmd: MagicMock, _system: MagicMock):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
         msg = attempt_fix_docker()
-        assert "docker.io installed" in msg
+        assert "get.docker.com" in msg
+
+    @patch("platform.system", return_value="Linux")
+    @patch("rakkib.doctor._command_exists", return_value=True)
+    @patch("subprocess.run")
+    def test_get_docker_failure(self, mock_run: MagicMock, _cmd: MagicMock, _system: MagicMock):
+        mock_run.return_value = MagicMock(returncode=1, stderr="network error")
+        msg = attempt_fix_docker()
+        assert "failed" in msg
 
     @patch("platform.system", return_value="Linux")
     @patch("rakkib.doctor._command_exists", return_value=False)
-    @patch("subprocess.run")
-    def test_no_installer(self, mock_run: MagicMock, _cmd: MagicMock, _system: MagicMock):
-        mock_run.side_effect = FileNotFoundError("sh")
+    def test_no_curl(self, _cmd: MagicMock, _system: MagicMock):
         msg = attempt_fix_docker()
-        assert "Could not find" in msg
+        assert "curl is required" in msg
+
+
+class TestAttemptFixCompose:
+    @patch("platform.machine", return_value="x86_64")
+    @patch("subprocess.run")
+    def test_install_success(self, mock_run: MagicMock, _machine: MagicMock):
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=0, stdout="Docker Compose version v2.35.1", stderr=""),
+        ]
+        msg = attempt_fix_compose()
+        assert "installed successfully" in msg
+
+    @patch("platform.machine", return_value="x86_64")
+    @patch("subprocess.run")
+    def test_mkdir_fails(self, mock_run: MagicMock, _machine: MagicMock):
+        mock_run.return_value = MagicMock(returncode=1, stderr="permission denied")
+        msg = attempt_fix_compose()
+        assert "cli-plugins directory" in msg
+
+    @patch("platform.machine", return_value="x86_64")
+    @patch("subprocess.run")
+    def test_download_fails(self, mock_run: MagicMock, _machine: MagicMock):
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=1, stderr="network error"),
+        ]
+        msg = attempt_fix_compose()
+        assert "download" in msg.lower() and "failed" in msg.lower()
+
+    @patch("platform.machine", return_value="x86_64")
+    @patch("subprocess.run")
+    def test_install_verify_fails(self, mock_run: MagicMock, _machine: MagicMock):
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=0, stderr=""),
+            MagicMock(returncode=1, stdout="", stderr="not found"),
+        ]
+        msg = attempt_fix_compose()
+        assert "failed" in msg.lower()
+
+    def test_unsupported_arch(self):
+        with patch("platform.machine", return_value="mips"):
+            msg = attempt_fix_compose()
+            assert "Unsupported architecture" in msg
 
 
 class TestAttemptFixCloudflared:

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import platform
 import shutil
+import struct
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -508,39 +509,64 @@ def attempt_fix_docker() -> str:
     if platform.system() != "Linux":
         return "Automatic Docker installation is only supported on Linux."
 
-    # Try apt-get
-    if _command_exists("apt-get"):
-        try:
-            result = subprocess.run(
-                ["sudo", "apt-get", "update"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                return f"apt-get update failed: {result.stderr.strip() or 'unknown error'}"
-            result = subprocess.run(
-                ["sudo", "apt-get", "install", "-y", "docker.io"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                return "docker.io installed via apt-get. You may need to start the service with 'sudo systemctl start docker'."
-            return f"apt-get install docker.io failed: {result.stderr.strip() or 'unknown error'}"
-        except FileNotFoundError:
-            pass
+    if not _command_exists("curl"):
+        return "curl is required but not found. Install curl first."
 
-    # Fallback to get.docker.com
+    result = subprocess.run(
+        ["sh", "-c", "curl -fsSL https://get.docker.com | sh"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return "Docker installed via get.docker.com. You may need to start the service with 'sudo systemctl start docker'."
+    return f"get.docker.com install failed: {result.stderr.strip() or 'unknown error'}"
+
+
+def attempt_fix_compose() -> str:
+    """Install docker compose v2 plugin. Returns a message describing the result."""
+    machine = platform.machine().lower()
+    arch_map = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64"}
+    arch = arch_map.get(machine)
+    if not arch:
+        return f"Unsupported architecture for compose plugin: {machine}"
+
+    compose_version = "v2.35.1"
+    url = f"https://github.com/docker/compose/releases/download/{compose_version}/docker-compose-linux-{arch}"
+
     try:
         result = subprocess.run(
-            ["sh", "-c", "curl -fsSL https://get.docker.com | sh"],
+            ["sudo", "mkdir", "-p", "/usr/local/lib/docker/cli-plugins"],
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0:
-            return "Docker installed via get.docker.com. You may need to start the service."
-        return f"get.docker.com install failed: {result.stderr.strip() or 'unknown error'}"
-    except FileNotFoundError:
-        return "Could not find a supported installer for Docker."
+        if result.returncode != 0:
+            return f"Failed to create cli-plugins directory: {result.stderr.strip() or 'unknown error'}"
+
+        result = subprocess.run(
+            ["sudo", "curl", "-fsSL", "-o", "/usr/local/lib/docker/cli-plugins/docker-compose", url],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return f"Failed to download docker compose: {result.stderr.strip() or 'unknown error'}"
+
+        subprocess.run(
+            ["sudo", "chmod", "+x", "/usr/local/lib/docker/cli-plugins/docker-compose"],
+            capture_output=True,
+            text=True,
+        )
+
+        verify = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            text=True,
+        )
+        if verify.returncode == 0:
+            return "docker compose plugin installed successfully."
+        return "docker compose plugin installed but 'docker compose version' failed. Try relogging or opening a new shell."
+
+    except FileNotFoundError as e:
+        return f"Required command not found: {e}"
 
 
 def attempt_fix_cloudflared() -> str:

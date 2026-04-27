@@ -728,13 +728,30 @@ class TestCheckDocker:
             from rakkib.cli import _check_docker
             assert _check_docker() is True
 
-    def test_compose_missing_aborts(self):
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
+    def test_compose_missing_decline_aborts(self):
+        compose_missing = MagicMock()
+        compose_missing.returncode = 1
+        compose_missing.stdout = ""
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
-            patch("rakkib.cli.subprocess.run", return_value=mock_result),
+            patch("rakkib.cli.subprocess.run", return_value=compose_missing),
+            patch("rakkib.tui.prompt_confirm", return_value=False),
         ):
             from rakkib.cli import _check_docker
             assert _check_docker() is False
+
+    def test_compose_missing_accept_installs(self):
+        compose_missing = MagicMock()
+        compose_missing.returncode = 1
+        compose_missing.stdout = ""
+        compose_ok = MagicMock()
+        compose_ok.returncode = 0
+        compose_ok.stdout = "Docker Compose version v2.35.1"
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.subprocess.run", side_effect=[compose_missing, compose_ok]),
+            patch("rakkib.tui.prompt_confirm", return_value=True),
+            patch("rakkib.doctor.attempt_fix_compose", return_value="docker compose plugin installed successfully."),
+        ):
+            from rakkib.cli import _check_docker
+            assert _check_docker() is True
