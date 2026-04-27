@@ -31,6 +31,15 @@ def _cloudflared_bin() -> str:
     return "cloudflared"
 
 
+def _ensure_cloudflared() -> None:
+    """Download and install cloudflared via wget + apt if not found."""
+    deb_path = Path("/tmp/cloudflared-linux-amd64.deb")
+    _run(["wget", "-q", "-O", str(deb_path),
+          "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"])
+    _run(["sudo", "apt", "install", "-y", str(deb_path)])
+    deb_path.unlink(missing_ok=True)
+
+
 def _run(
     cmd: list[str],
     env: dict[str, str] | None = None,
@@ -107,10 +116,8 @@ def run(state: State) -> None:
     try:
         _run([_cloudflared_bin(), "--version"])
     except RuntimeError:
-        raise RuntimeError(
-            "cloudflared CLI is not installed or not runnable. "
-            f"Expected at {_cloudflared_bin()}"
-        )
+        print("cloudflared not found, installing via wget + apt...")
+        _ensure_cloudflared()
 
     cert_path = cloudflared_dir / "cert.pem"
     default_cert = Path.home() / ".cloudflared" / "cert.pem"

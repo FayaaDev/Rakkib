@@ -591,7 +591,7 @@ def attempt_fix_cloudflared() -> str:
         if kernel == "linux" and _command_exists("dpkg"):
             deb_path = local_bin / "cloudflared.deb"
             result = subprocess.run(
-                ["curl", "-fsSL", "-o", str(deb_path), url],
+                ["wget", "-q", "-O", str(deb_path), url],
                 capture_output=True,
                 text=True,
             )
@@ -602,20 +602,21 @@ def attempt_fix_cloudflared() -> str:
                     text=True,
                 )
                 if result.returncode == 0 or result.returncode == 1:
-                    # apt may exit 1 if dependencies missing; still likely installed
                     return f"cloudflared installed via apt from {url}"
         # Fallback: direct binary download
+        fallback_url = url.replace(".deb", "")
+        fallback_path = local_bin / "cloudflared"
         result = subprocess.run(
-            ["curl", "-fsSL", "-o", str(local_bin / "cloudflared"), url.replace(".deb", "")],
+            ["wget", "-q", "-O", str(fallback_path), fallback_url],
             capture_output=True,
             text=True,
         )
         if result.returncode == 0:
-            (local_bin / "cloudflared").chmod(0o755)
-            return f"cloudflared downloaded to {local_bin / 'cloudflared'}"
+            fallback_path.chmod(0o755)
+            return f"cloudflared downloaded to {fallback_path}"
         return f"cloudflared download failed: {result.stderr.strip() or 'unknown error'}"
     except FileNotFoundError:
-        return "curl is not available; cannot install cloudflared automatically."
+        return "wget is not available; cannot install cloudflared automatically."
 
 
 def process_owners_for_ports() -> dict[int, str]:
