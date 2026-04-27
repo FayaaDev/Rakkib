@@ -6,6 +6,13 @@ REPO_URL="${RAKKIB_REPO:-https://github.com/FayaaDev/Rakkib.git}"
 BRANCH="${RAKKIB_BRANCH:-main}"
 BOOTSTRAP_URL="${RAKKIB_BOOTSTRAP_URL:-https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh}"
 
+# Distribution channel decision (Rakkib-94m):
+# v2.0 ships via GitHub release wheel. Users will run:
+#   pipx install https://github.com/FayaaDev/Rakkib/releases/download/v2.0.0/rakkib-2.0.0-py3-none-any.whl
+# PyPI publication is deferred to v2.1+ for cleaner long-term discoverability.
+# Until the release workflow is wired, this bootstrapper still clones the repo
+# and pipx-installs from the local checkout.
+
 if [[ -f "AGENT_PROTOCOL.md" && -f "lib/common.sh" ]]; then
   # shellcheck source=lib/common.sh
   . "lib/common.sh"

@@ -140,7 +140,7 @@ The Wave 0 PATH fix is still needed. The `rakkib pull` command becomes optional 
 ## Risks and open questions
 
 - **Python availability on truly minimal images** (Alpine, distroless container hosts). Bootstrap should detect and either install or fail clearly.
-- **Distribution channel.** `pipx` from a tagged GitHub release vs publishing to PyPI. PyPI is cleaner long-term; a GitHub release wheel is fine for v2.0.
+- **Distribution channel.** DECISION (Rakkib-94m): v2.0 ships via a GitHub release wheel (`pipx install <release-asset-url>`). PyPI publication is deferred to v2.1+ for cleaner long-term discoverability. The release CI will build `py3-none-any.whl` and attach it to the GitHub release.
 - **Test coverage.** v1 has no test suite I could find. v2 needs at least: schema parsing, state round-trip, render output snapshot, and a docker-mocked step happy-path test.
 - **Marketing positioning.** "Agent-driven installer" becomes "wizard + agent for hard parts." Worth deciding before any public messaging change.
 - **Existing `expansions.md` v1.1 services.** They land easier under v2 because adding a service is `registry.yaml` + template + maybe a step subclass, no markdown round-trip.
