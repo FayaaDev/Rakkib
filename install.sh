@@ -245,12 +245,33 @@ ensure_pipx() {
     return 0
   fi
   log "pipx not found. Installing pipx..."
+
+  # 1. Try apt (preferred for PEP 668 distros like Ubuntu 23.04+)
+  if _command_exists apt-get; then
+    if sudo apt-get update -qq >/dev/null 2>&1 && \
+       sudo apt-get install -y -qq pipx >/dev/null 2>&1; then
+      pipx ensurepath >/dev/null 2>&1 || true
+      command_exists pipx && return 0
+    fi
+  fi
+
+  # 2. Try dnf
+  if _command_exists dnf; then
+    if sudo dnf install -y pipx >/dev/null 2>&1; then
+      pipx ensurepath >/dev/null 2>&1 || true
+      command_exists pipx && return 0
+    fi
+  fi
+
+  # 3. Fallback: pip install --user (for non-PEP 668 or when apt/dnf fail)
   if command_exists pip3; then
     pip3 install --user --yes pipx >/dev/null 2>&1 || true
   fi
   if ! command_exists pipx && command_exists python3; then
     python3 -m pip install --user --yes pipx >/dev/null 2>&1 || true
   fi
+
+  # 4. Check if pipx is now available
   if command_exists pipx; then
     python3 -m pipx ensurepath >/dev/null 2>&1 || true
     return 0
@@ -259,22 +280,6 @@ ensure_pipx() {
     export PATH="${HOME}/.local/bin:${PATH}"
     python3 -m pipx ensurepath >/dev/null 2>&1 || true
     return 0
-  fi
-
-  # Try installing system python deps and retry
-  if _install_system_python_deps; then
-    log "Retrying pipx installation..."
-    if command_exists pip3; then
-      pip3 install --user --yes pipx >/dev/null 2>&1 || true
-    fi
-    if ! command_exists pipx && command_exists python3; then
-      python3 -m pip install --user --yes pipx >/dev/null 2>&1 || true
-    fi
-    if [[ -x "${HOME}/.local/bin/pipx" ]]; then
-      export PATH="${HOME}/.local/bin:${PATH}"
-      python3 -m pipx ensurepath >/dev/null 2>&1 || true
-      return 0
-    fi
   fi
 
   command_exists pipx || die "pipx installation failed. Install pipx manually (https://pypa.github.io/pipx/) and rerun."
