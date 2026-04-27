@@ -178,6 +178,7 @@ class TestInit:
 
         fake_result = MagicMock(ok=False, step="layout", message="bad", log_path=None)
         with (
+            patch("rakkib.cli._check_docker", return_value=True),
             patch("rakkib.steps.layout.verify", return_value=fake_result),
             patch("rakkib.steps.layout.run") as mock_run,
             patch("rakkib.cli.handoff") as mock_handoff,
@@ -705,3 +706,35 @@ class TestPrivileged:
             )
         assert result.exit_code == 0
         mock_chown.assert_called()
+
+
+class TestCheckDocker:
+    def test_docker_missing_aborts(self):
+        with (
+            patch("rakkib.cli.shutil.which", return_value=None),
+            patch("rakkib.tui.prompt_confirm", return_value=False),
+        ):
+            from rakkib.cli import _check_docker
+            assert _check_docker() is False
+
+    def test_docker_available_passes(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Docker Compose version v2.24.0"
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.subprocess.run", return_value=mock_result),
+        ):
+            from rakkib.cli import _check_docker
+            assert _check_docker() is True
+
+    def test_compose_missing_aborts(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.subprocess.run", return_value=mock_result),
+        ):
+            from rakkib.cli import _check_docker
+            assert _check_docker() is False

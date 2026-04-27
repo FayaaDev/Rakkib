@@ -31,7 +31,8 @@ class TestFindAgent:
     def test_finds_first_available(self):
         with patch("rakkib.agent_handoff.shutil.which") as mock_which:
             mock_which.side_effect = lambda name: name == "claude"
-            assert find_agent() == "claude"
+            with patch("rakkib.agent_handoff._AGENT_EXTRA_PATHS", {}):
+                assert find_agent() == "claude"
 
     def test_prefers_preferred(self):
         with patch("rakkib.agent_handoff.shutil.which") as mock_which:
@@ -40,13 +41,55 @@ class TestFindAgent:
 
     def test_returns_none_when_missing(self):
         with patch("rakkib.agent_handoff.shutil.which", return_value=None):
-            assert find_agent() is None
+            with patch.object(Path, "is_file", return_value=False):
+                assert find_agent() is None
 
     def test_none_and_auto_are_ignored(self):
         with patch("rakkib.agent_handoff.shutil.which") as mock_which:
             mock_which.side_effect = lambda name: name == "opencode"
             assert find_agent("none") == "opencode"
             assert find_agent("auto") == "opencode"
+
+    def test_finds_via_extra_path(self):
+        with patch("rakkib.agent_handoff.shutil.which", return_value=None):
+            with patch("rakkib.agent_handoff._AGENT_EXTRA_PATHS", {"opencode": ["/fake/opencode"]}):
+                with patch.object(Path, "is_file", return_value=True):
+                    assert find_agent() == "opencode"
+
+    def test_extra_path_skipped_when_not_file(self):
+        with patch("rakkib.agent_handoff.shutil.which", return_value=None):
+            with patch("rakkib.agent_handoff._AGENT_EXTRA_PATHS", {"opencode": ["/nonexistent/opencode"]}):
+                with patch.object(Path, "is_file", return_value=False):
+                    assert find_agent() is None
+
+
+class TestOfferInstallAgent:
+    def test_decline_install(self):
+        from rakkib.agent_handoff import _offer_install_agent
+        with patch("rakkib.tui.prompt_confirm", return_value=False):
+            assert _offer_install_agent() is False
+
+    def test_accept_install_success(self):
+        from rakkib.agent_handoff import _offer_install_agent
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with (
+            patch("rakkib.tui.prompt_confirm", return_value=True),
+            patch("rakkib.agent_handoff.subprocess.run", return_value=mock_result),
+        ):
+            assert _offer_install_agent() is True
+
+    def test_accept_install_failure(self):
+        from rakkib.agent_handoff import _offer_install_agent
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "error"
+        mock_result.stdout = ""
+        with (
+            patch("rakkib.tui.prompt_confirm", return_value=True),
+            patch("rakkib.agent_handoff.subprocess.run", return_value=mock_result),
+        ):
+            assert _offer_install_agent() is True
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +350,7 @@ class TestHandoff:
         state = State({"data_root": str(tmp_path)})
         with (
             patch("rakkib.agent_handoff.find_agent", return_value=None),
+            patch("rakkib.agent_handoff._offer_install_agent", return_value=False),
             patch("rakkib.agent_handoff.console.print") as mock_print,
         ):
             result = handoff(

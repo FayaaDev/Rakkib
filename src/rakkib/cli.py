@@ -101,6 +101,38 @@ def _update_readme_agent_memory(repo_dir: Path, state: State) -> None:
     readme_path.write_text(content)
 
 
+def _check_docker() -> bool:
+    """Verify docker and docker compose are available. Offer to install if missing."""
+    if shutil.which("docker") is None:
+        console.print("[bold red]Docker is required but not found on PATH.[/bold red]")
+        console.print(
+            "Install Docker: https://docs.docker.com/engine/install/ubuntu/#installation-methods"
+        )
+        from rakkib.tui import prompt_confirm
+        if prompt_confirm("Install Docker now? (uses get.docker.com convenience script)", default=True):
+            from rakkib.doctor import attempt_fix_docker
+            result = attempt_fix_docker()
+            console.print(f"[dim]{result}[/dim]")
+            if shutil.which("docker") is None:
+                console.print("[bold red]Docker installation did not succeed. Aborting.[/bold red]")
+                return False
+            console.print("[green]Docker installed successfully.[/green]")
+        else:
+            return False
+
+    compose_check = subprocess.run(
+        ["docker", "compose", "version"],
+        capture_output=True,
+        text=True,
+    )
+    if compose_check.returncode != 0:
+        console.print("[bold red]docker compose (v2 plugin) is required but not available.[/bold red]")
+        console.print("Install the Docker Compose plugin: https://docs.docker.com/compose/install/")
+        return False
+
+    return True
+
+
 def _run_steps(
     state: State,
     repo_dir: Path,
@@ -109,6 +141,9 @@ def _run_steps(
     no_agent: bool = False,
 ) -> bool:
     """Execute setup steps in order. Return True if all pass."""
+    if not _check_docker():
+        return False
+
     steps: list[tuple[str, str]] = [
         ("10", "rakkib.steps.layout"),
         ("30", "rakkib.steps.caddy"),

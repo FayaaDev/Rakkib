@@ -33,8 +33,31 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
+_AGENT_EXTRA_PATHS: dict[str, list[str]] = {
+    "opencode": [
+        str(Path.home() / ".opencode" / "bin" / "opencode"),
+        str(Path.home() / ".local" / "bin" / "opencode"),
+    ],
+    "claude": [
+        str(Path.home() / ".local" / "bin" / "claude"),
+    ],
+    "codex": [
+        str(Path.home() / ".local" / "bin" / "codex"),
+    ],
+}
+
+_AGENT_INSTALL_INFO: dict[str, tuple[str, str]] = {
+    "opencode": ("https://opencode.ai", "curl -fsSL https://opencode.ai/install | bash"),
+    "claude": ("https://docs.anthropic.com/en/docs/claude-code", "npm install -g @anthropic-ai/claude-code"),
+    "codex": ("https://github.com/openai/codex", "npm install -g @openai/codex"),
+}
+
+
 def find_agent(preferred: str | None = None) -> AgentName | None:
-    """Return the first available agent CLI on PATH.
+    """Return the first available agent CLI on PATH or known install paths.
+
+    Checks ``shutil.which()`` first, then falls back to well-known
+    install locations under the user's home directory.
 
     *preferred* may be an agent name or ``"auto"`` / ``"none"``.
     """
@@ -49,6 +72,9 @@ def find_agent(preferred: str | None = None) -> AgentName | None:
     for agent in candidates:
         if shutil.which(agent):
             return agent
+        for extra in _AGENT_EXTRA_PATHS.get(agent, []):
+            if Path(extra).is_file():
+                return agent
     return None
 
 
@@ -291,6 +317,28 @@ def _launch(agent: AgentName, prompt: str, repo_dir: Path | None = None) -> int:
     return result.returncode
 
 
+def _offer_install_agent() -> bool:
+    """Offer to install an agent CLI. Returns True if an install was attempted."""
+    from rakkib.tui import prompt_confirm as _pc
+
+    if not _pc("Install opencode now? (recommended)", default=True):
+        return False
+
+    url, install_cmd = _AGENT_INSTALL_INFO["opencode"]
+    console.print(f"[dim]Running: {install_cmd}[/dim]")
+    install_result = subprocess.run(
+        ["bash", "-c", install_cmd],
+        capture_output=True,
+        text=True,
+    )
+    if install_result.returncode == 0:
+        console.print("[green]opencode installed. Re-run rakkib to use it.[/green]")
+    else:
+        console.print(f"[red]Installation failed:[/red] {install_result.stderr.strip() or install_result.stdout.strip()}")
+        console.print(f"[dim]Install manually: {url}[/dim]")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Public handoff entrypoint
 # ---------------------------------------------------------------------------
@@ -340,10 +388,14 @@ def handoff(
         console.print(
             "[yellow]No supported agent found on PATH (opencode, claude, codex).[/yellow]"
         )
+        if _offer_install_agent():
+            return False
         console.print(
             "[dim]You can re-run with --print-prompt to see the diagnostic prompt, "
-            "or install an agent and try again.[/dim]"
+            "or install an agent yourself and try again.[/dim]"
         )
+        for name, (url, _) in _AGENT_INSTALL_INFO.items():
+            console.print(f"[dim]  {name}: {url}[/dim]")
         return False
 
     launch = prompt_confirm(
