@@ -192,20 +192,23 @@ def _render_caddy_route(state: State, svc: dict, repo: Path, data_root: Path) ->
 def _reload_caddy(data_root: Path) -> None:
     caddy_dir = data_root / "docker" / "caddy"
     caddyfile = caddy_dir / "Caddyfile"
-    subprocess.run(
-        [
-            "docker", "compose", "exec", "caddy",
-            "caddy", "fmt", "--overwrite", "/etc/caddy/Caddyfile",
-        ],
+
+    # Format the Caddyfile by running caddy fmt inside the container and
+    # writing the result to the host-side file (the bind mount is read-only
+    # inside the container, so --overwrite cannot work).
+    fmt_result = subprocess.run(
+        ["docker", "compose", "exec", "caddy", "caddy", "fmt", "/etc/caddy/Caddyfile"],
         cwd=str(caddy_dir),
         capture_output=True,
         text=True,
     )
+    if fmt_result.returncode == 0 and fmt_result.stdout.strip():
+        caddyfile.write_text(fmt_result.stdout)
+
+    # The Caddyfile has `admin off` so `caddy reload` (which needs the admin
+    # API) will always fail. Restart the container instead.
     subprocess.run(
-        [
-            "docker", "compose", "exec", "caddy",
-            "caddy", "reload", "--config", "/etc/caddy/Caddyfile",
-        ],
+        ["docker", "compose", "restart", "caddy"],
         cwd=str(caddy_dir),
         capture_output=True,
         text=True,
