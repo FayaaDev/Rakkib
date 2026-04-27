@@ -48,6 +48,7 @@ Every template in this repository uses `{{PLACEHOLDER}}` syntax for direct strin
 - `{{AUTHENTIK_DB_PASS}}`: `secrets.values.AUTHENTIK_DB_PASS`, Authentik database password
 - `{{AUTHENTIK_ADMIN_PASS}}`: `secrets.values.AUTHENTIK_ADMIN_PASS`, Authentik bootstrap admin password; set on first run via `AUTHENTIK_BOOTSTRAP_PASSWORD`
 - `{{HOMEPAGE_SUBDOMAIN}}`: `subdomains.homepage`, default `home`
+- `{{HOMEPAGE_ALLOWED_HOSTS}}`: rendered from `subdomains.homepage` + `domain`, host validation whitelist for Homepage
 - `{{UPTIME_KUMA_SUBDOMAIN}}`: `subdomains.uptime-kuma`, default `status`
 - `{{DOCKGE_SUBDOMAIN}}`: `subdomains.dockge`, default `dockge`
 
