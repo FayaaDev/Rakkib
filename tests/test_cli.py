@@ -115,6 +115,52 @@ class TestInit:
         assert "not yet implemented" not in result.output
         mock_run.assert_called_once()
 
+    def test_init_confirmed_state_goes_through_interview(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        questions_dir = repo_dir / "questions"
+        questions_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text("confirmed: true\n")
+
+        (questions_dir / "01-platform.md").write_text(
+            "## AgentSchema\n```yaml\nschema_version: 1\nphase: 1\nfields:\n"
+            "  - id: platform\n    type: single_select\n    prompt: Platform?\n"
+            "    canonical_values: [linux, mac]\n    records: [platform]\n```\n"
+        )
+
+        with (
+            patch("rakkib.cli.run_interview") as mock_interview,
+            patch("rakkib.cli._run_steps") as mock_steps,
+        ):
+            mock_interview.return_value = State({"platform": "linux", "confirmed": True})
+            result = runner.invoke(
+                cli,
+                ["init"],
+                obj={"repo_dir": repo_dir},
+            )
+
+        assert result.exit_code == 0
+        mock_interview.assert_called_once()
+        mock_steps.assert_called_once()
+
+    def test_init_resume_without_confirmed_state(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text("platform: linux\n")
+
+        result = runner.invoke(
+            cli,
+            ["init", "--resume"],
+            obj={"repo_dir": repo_dir},
+        )
+
+        assert result.exit_code == 0
+        assert "not confirmed" in result.output
+
     def test_init_step_failure_invokes_handoff(self, tmp_path: Path):
         runner = CliRunner()
         repo_dir = tmp_path / "repo"

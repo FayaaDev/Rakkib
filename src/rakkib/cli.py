@@ -205,12 +205,17 @@ def init(ctx: click.Context, agent: str, print_prompt: bool, no_agent: bool, res
     state_path = repo_dir / ".fss-state.yaml"
     state = State.load(state_path)
 
-    # Auto-resume if state is already confirmed
-    if resume or state.is_confirmed():
-        console.print("[dim]State is confirmed — resuming step execution.[/dim]")
+    # --resume explicitly skips the interview and runs steps directly
+    if resume:
+        if not state.is_confirmed():
+            console.print("[yellow]State is not confirmed — cannot resume. Run `rakkib init` without --resume to complete the interview.[/yellow]")
+            return
+        console.print("[dim]--resume set — skipping interview, resuming step execution.[/dim]")
         _run_steps(state, repo_dir, agent=agent, print_prompt=print_prompt, no_agent=no_agent)
         return
 
+    # Always go through run_interview — it handles the confirmed-state case
+    # by asking "Start over?" before proceeding
     state = run_interview(state, questions_dir=repo_dir / "data" / "questions")
     state.save(state_path)
     console.print("[bold green]Interview complete. State saved to .fss-state.yaml[/bold green]")

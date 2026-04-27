@@ -329,8 +329,9 @@ class TestResumeBehavior:
         actual_prompt = mock_confirm.call_args[0][0] if mock_confirm.call_args[0] else ""
         assert "Start over" in actual_prompt or "start over" in actual_prompt
 
-    def test_init_confirmed_true_auto_resumes_steps(self, tmp_path: Path):
-        """CLI init with confirmed: true skips interview and runs steps."""
+    def test_init_confirmed_true_goes_through_interview(self, tmp_path: Path):
+        """CLI init with confirmed: true goes through run_interview (which asks
+        'Start over?'), not directly to steps."""
         runner = CliRunner()
         repo_dir = tmp_path / "repo"
         repo_dir.mkdir()
@@ -339,14 +340,33 @@ class TestResumeBehavior:
 
         with (
             patch("rakkib.cli._run_steps") as mock_run_steps,
-            patch("rakkib.interview.run_interview") as mock_interview,
+            patch("rakkib.cli.run_interview") as mock_interview,
         ):
+            mock_interview.return_value = State({"confirmed": True, "platform": "linux"})
             result = runner.invoke(cli, ["init"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        mock_interview.assert_called_once()
+        mock_run_steps.assert_called_once()
+
+    def test_init_resume_flag_skips_interview(self, tmp_path: Path):
+        """CLI init --resume with confirmed: true skips interview and runs steps."""
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text("confirmed: true\nplatform: linux\n")
+
+        with (
+            patch("rakkib.cli._run_steps") as mock_run_steps,
+            patch("rakkib.cli.run_interview") as mock_interview,
+        ):
+            result = runner.invoke(cli, ["init", "--resume"], obj={"repo_dir": repo_dir})
 
         assert result.exit_code == 0
         mock_interview.assert_not_called()
         mock_run_steps.assert_called_once()
-        assert "resuming step execution" in result.output.lower()
+        assert "resuming step execution" in result.output.lower() or "--resume" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------
