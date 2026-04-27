@@ -4,6 +4,7 @@ services:
     container_name: cloudflared
     restart: unless-stopped
     command: tunnel --metrics 0.0.0.0:{{CLOUDFLARED_METRICS_PORT}} run
+    user: "{{ADMIN_UID}}:{{ADMIN_GID}}"
     volumes:
       - {{DATA_ROOT}}/data/cloudflared:/home/nonroot/.cloudflared
     ports:

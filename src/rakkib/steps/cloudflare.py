@@ -283,15 +283,23 @@ def run(state: State) -> None:
             )
 
     # 12. Set file permissions on credentials JSON
+    # The container runs as the admin user (via docker-compose user:), so ownership must match.
     os.chmod(creds_host_path, 0o600)
+    admin_uid = os.getuid()
+    admin_gid = os.getgid()
     if admin_user:
         import pwd
 
         try:
             pw = pwd.getpwnam(admin_user)
-            os.chown(creds_host_path, pw.pw_uid, pw.pw_gid)
+            admin_uid = pw.pw_uid
+            admin_gid = pw.pw_gid
+            os.chown(creds_host_path, admin_uid, admin_gid)
         except KeyError:
             pass
+
+    state.set("admin_uid", str(admin_uid))
+    state.set("admin_gid", str(admin_gid))
 
     # 13. Update state with final values
     state.set("cloudflare.tunnel_uuid", tunnel_uuid)

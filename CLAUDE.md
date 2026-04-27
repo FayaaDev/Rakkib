@@ -4,6 +4,8 @@
 
 Assume the target machine is **bare metal** — only `curl`, `git`, and `python3` may be present. The `install.sh` script is the sole entry point. It must bring up everything else (venv, pip, rakkib CLI) without pre-existing tooling.
 
+Dont debug and run tests on current machine, the app is being tested on a bare metal machine. Not this one
+
 Solo one-line command:
 curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash
 
