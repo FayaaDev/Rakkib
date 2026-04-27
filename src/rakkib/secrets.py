@@ -69,3 +69,10 @@ def ensure_secrets(state: State) -> None:
 
     if changed:
         state.set("secrets.values", values)
+
+    # Propagate nested secrets to flat namespace so downstream steps
+    # (e.g. services._generate_missing_secrets) find them via state.has()/state.get()
+    # instead of generating divergent passwords.
+    for key, val in (values or {}).items():
+        if not state.has(key):
+            state.set(key, val)

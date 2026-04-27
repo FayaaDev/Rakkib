@@ -90,3 +90,17 @@ def test_ensure_secrets_idempotent():
     ensure_secrets(state)
     second = state.get("secrets.values.POSTGRES_PASSWORD")
     assert first == second
+
+
+def test_ensure_secrets_propagates_to_flat_namespace():
+    state = State({})
+    ensure_secrets(state)
+    for key in SECRET_GENERATORS:
+        assert state.get(key) == state.get(f"secrets.values.{key}")
+
+
+def test_ensure_secrets_does_not_overwrite_existing_flat_key():
+    state = State({"POSTGRES_PASSWORD": "existing-flat"})
+    ensure_secrets(state)
+    assert state.get("POSTGRES_PASSWORD") == "existing-flat"
+    assert state.get("secrets.values.POSTGRES_PASSWORD") != "existing-flat"

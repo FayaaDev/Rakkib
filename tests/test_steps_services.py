@@ -111,6 +111,36 @@ class TestGenerateMissingSecrets:
         services_step._generate_missing_secrets(state)
         assert state.get("N8N_ENCRYPTION_KEY") is None
 
+    def test_prefers_secrets_values_over_generation(self):
+        """When secrets.values already has a password (set by Step 4),
+        Step 5 must reuse it instead of generating a divergent one."""
+        state = State({
+            "foundation_services": ["nocodb", "authentik"],
+            "selected_services": ["n8n"],
+            "secrets": {
+                "n8n_mode": "fresh",
+                "values": {
+                    "AUTHENTIK_DB_PASS": "from-step4-authentik",
+                    "NOCODB_DB_PASS": "from-step4-nocodb",
+                    "N8N_DB_PASS": "from-step4-n8n",
+                },
+            },
+        })
+        services_step._generate_missing_secrets(state)
+        assert state.get("AUTHENTIK_DB_PASS") == "from-step4-authentik"
+        assert state.get("NOCODB_DB_PASS") == "from-step4-nocodb"
+        assert state.get("N8N_DB_PASS") == "from-step4-n8n"
+
+    def test_generates_when_secrets_values_empty(self):
+        """When secrets.values has no entry, Step 5 should still generate."""
+        state = State({
+            "foundation_services": ["authentik"],
+            "secrets": {"values": {}},
+        })
+        services_step._generate_missing_secrets(state)
+        assert state.get("AUTHENTIK_DB_PASS") is not None
+        assert len(state.get("AUTHENTIK_DB_PASS")) > 0
+
 
 class TestRenderEnvExample:
     def test_renders_and_sets_perms(self, tmp_path: Path):
