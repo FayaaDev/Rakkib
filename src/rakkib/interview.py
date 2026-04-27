@@ -337,14 +337,15 @@ def _prompt_confirm(field: FieldDef, state: State) -> Any:
             bool_default = default if isinstance(default, bool) else False
             return prompt_confirm(prompt, default=bool_default)
         else:
-            choices = list(field.accepted_inputs.keys())
+            choices = [str(k) for k in field.accepted_inputs.keys()]
+            values_map = {str(k): v for k, v in field.accepted_inputs.items()}
             while True:
                 result = prompt_select(prompt, choices=choices)
                 if result is None:
                     if default is not None:
                         return default
                     continue
-                matched = field.accepted_inputs.get(result.lower())
+                matched = values_map.get(result.lower())
                 if matched is not None:
                     return matched
                 console.print(f"[red]Invalid choice. Valid options: {', '.join(choices)}[/red]")

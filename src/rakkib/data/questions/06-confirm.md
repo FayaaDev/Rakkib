@@ -60,8 +60,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
     records:
       - confirmed
 ```

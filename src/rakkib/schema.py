@@ -84,6 +84,8 @@ class QuestionSchema:
             if not isinstance(f, dict):
                 raise ValueError("Each field must be a YAML mapping")
             filtered = {k: v for k, v in f.items() if k in known_field_keys}
+            if "accepted_inputs" in filtered and isinstance(filtered["accepted_inputs"], dict):
+                filtered["accepted_inputs"] = _normalize_accepted_inputs(filtered["accepted_inputs"])
             fields.append(FieldDef(**filtered))
 
         return cls(
@@ -96,6 +98,25 @@ class QuestionSchema:
             rules=raw.get("rules", []),
             execution_generated_only=raw.get("execution_generated_only", []),
         )
+
+
+_BOOL_KEY_MAP = {True: "yes", False: "no"}
+
+
+def _normalize_accepted_inputs(data: dict) -> dict[str, Any]:
+    """Convert boolean keys in accepted_inputs to safe string keys.
+
+    YAML treats unquoted ``yes`` and ``no`` as boolean True/False, which
+    breaks ``questionary.select`` (it expects strings or Choice objects).
+
+    This also deduplicates keys that collided after YAML parsing — e.g.
+    ``True`` and ``1`` are the same dict key in Python.
+    """
+    normalized: dict[str, Any] = {}
+    for key, value in data.items():
+        str_key = _BOOL_KEY_MAP.get(key, str(key)) if isinstance(key, bool) else str(key)
+        normalized[str_key] = value
+    return normalized
 
 
 def load_all_schemas(directory: Path | str = QUESTIONS_DIR) -> list[QuestionSchema]:

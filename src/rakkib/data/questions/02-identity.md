@@ -46,8 +46,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
     records:
       - cloudflare.zone_in_cloudflare
   - id: admin_user

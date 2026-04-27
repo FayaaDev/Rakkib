@@ -37,8 +37,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
     records:
       - cloudflare.headless
       - cloudflare.auth_method
@@ -51,8 +51,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
   - id: advanced_api_token
     type: confirm
     when: cloudflare.tunnel_strategy == new and accept_browser_login == false
@@ -60,8 +60,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
     records:
       - cloudflare.auth_method
     value_if_true:
@@ -99,8 +99,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
   - id: tunnel_uuid
     type: text
     when: cloudflare.tunnel_strategy == existing and knows_tunnel_uuid == true

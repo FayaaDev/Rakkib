@@ -119,8 +119,8 @@ fields:
     accepted_inputs:
       y: true
       n: false
-      yes: true
-      no: false
+      "yes": true
+      "no": false
   - id: service_subdomain
     type: text
     repeat_for: selected_service_slugs
