@@ -98,49 +98,21 @@ def run(state: State) -> None:
         state,
     )
 
-    # 10. Check if Caddy was already running before we start/update.
-    was_running = subprocess.run(
-        ["docker", "ps", "-q", "-f", "name=^caddy$"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-
-    # 11. Start or update container.
+    # 10-12. Start or recreate container so the new Caddyfile is always applied.
+    # --force-recreate ensures the container restarts even if the compose file
+    # didn't change, which is required when the previous Caddyfile had admin off
+    # (making hot-reload via the admin API impossible).
     up = subprocess.run(
-        ["docker", "compose", "up", "-d"],
+        ["docker", "compose", "up", "-d", "--force-recreate"],
         cwd=str(caddy_dir),
         capture_output=True,
         text=True,
     )
     if up.returncode != 0:
-        raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}")
-
-    # 12. Reload if Caddy was already running (otherwise up -d applied the config).
-    if was_running:
-        reload = subprocess.run(
-            [
-                "docker", "compose", "exec", "caddy",
-                "caddy", "reload", "--config", "/etc/caddy/Caddyfile",
-            ],
-            cwd=str(caddy_dir),
-            capture_output=True,
-            text=True,
-        )
-        if reload.returncode != 0:
-            # Restore backup and restart.
-            bak = caddy_dir / "Caddyfile.bak"
-            if bak.exists():
-                shutil.copy2(bak, caddyfile)
-            subprocess.run(
-                ["docker", "compose", "up", "-d"],
-                cwd=str(caddy_dir),
-                capture_output=True,
-                text=True,
-            )
-            raise RuntimeError(
-                f"Caddy reload failed: {reload.stderr.strip()}. "
-                "Restored previous Caddyfile."
-            )
+        bak = caddy_dir / "Caddyfile.bak"
+        if bak.exists():
+            shutil.copy2(bak, caddyfile)
+        raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}. Restored previous Caddyfile.")
 
     log_path.write_text("caddy step completed\n")
 
