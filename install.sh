@@ -250,16 +250,20 @@ ensure_pipx() {
   if _command_exists apt-get; then
     if sudo apt-get update -qq >/dev/null 2>&1 && \
        sudo apt-get install -y -qq pipx >/dev/null 2>&1; then
-      pipx ensurepath >/dev/null 2>&1 || true
-      command_exists pipx && return 0
+      if command_exists pipx; then
+        pipx ensurepath >/dev/null 2>&1 || true
+        return 0
+      fi
     fi
   fi
 
   # 2. Try dnf
   if _command_exists dnf; then
     if sudo dnf install -y pipx >/dev/null 2>&1; then
-      pipx ensurepath >/dev/null 2>&1 || true
-      command_exists pipx && return 0
+      if command_exists pipx; then
+        pipx ensurepath >/dev/null 2>&1 || true
+        return 0
+      fi
     fi
   fi
 
@@ -280,6 +284,17 @@ ensure_pipx() {
     export PATH="${HOME}/.local/bin:${PATH}"
     python3 -m pipx ensurepath >/dev/null 2>&1 || true
     return 0
+  fi
+
+  # 5. Try venv bootstrap as final fallback (PEP 668 workaround from pipx docs)
+  if _command_exists python3; then
+    log "Trying venv bootstrap for pipx..."
+    if python3 -m venv ~/.local/share/pipx-venv >/dev/null 2>&1 && \
+       ~/.local/share/pipx-venv/bin/pip install pipx >/dev/null 2>&1 && \
+       ln -sf ~/.local/share/pipx-venv/bin/pipx ~/.local/bin/pipx 2>/dev/null; then
+      pipx ensurepath >/dev/null 2>&1 || true
+      command_exists pipx && return 0
+    fi
   fi
 
   command_exists pipx || die "pipx installation failed. Install pipx manually (https://pypa.github.io/pipx/) and rerun."
