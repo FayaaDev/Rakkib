@@ -597,13 +597,13 @@ def attempt_fix_cloudflared() -> str:
             )
             if result.returncode == 0:
                 result = subprocess.run(
-                    ["sudo", "dpkg", "--yes", "-i", str(deb_path)],
+                    ["sudo", "apt", "install", "-y", str(deb_path)],
                     capture_output=True,
                     text=True,
                 )
                 if result.returncode == 0 or result.returncode == 1:
-                    # dpkg may exit 1 if dependencies missing; still likely installed
-                    return f"cloudflared installed via dpkg from {url}"
+                    # apt may exit 1 if dependencies missing; still likely installed
+                    return f"cloudflared installed via apt from {url}"
         # Fallback: direct binary download
         result = subprocess.run(
             ["curl", "-fsSL", "-o", str(local_bin / "cloudflared"), url.replace(".deb", "")],
