@@ -64,7 +64,8 @@ def _generate_init_sql(state: State) -> str:
     selected = state.get("selected_services", []) or []
     secrets = state.get("secrets.values", {}) or {}
 
-    def _add_service(name: str, role: str, password: str) -> None:
+    def _add_service(name: str, role: str, password: str, db_name: str | None = None) -> None:
+        db = db_name or role
         lines.extend(
             [
                 f"-- {name}",
@@ -77,7 +78,7 @@ def _generate_init_sql(state: State) -> str:
                 "    END IF;",
                 "END",
                 "$$;",
-                f"SELECT 'CREATE DATABASE {role} OWNER {role}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{role}') \\gexec",
+                f"SELECT 'CREATE DATABASE {db} OWNER {role}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{db}') \\gexec",
                 "",
             ]
         )
@@ -89,7 +90,7 @@ def _generate_init_sql(state: State) -> str:
         _add_service("Authentik", "authentik", secrets.get("AUTHENTIK_DB_PASS", ""))
 
     if "n8n" in selected:
-        _add_service("n8n", "n8n", secrets.get("N8N_DB_PASS", ""))
+        _add_service("n8n", "n8n", secrets.get("N8N_DB_PASS", ""), "n8n_db")
 
     return "\n".join(lines)
 
