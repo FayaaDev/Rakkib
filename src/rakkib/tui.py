@@ -35,9 +35,17 @@ def prompt_text(message: str, default: str | None = None) -> str:
 def prompt_confirm(message: str, default: bool = False) -> bool:
     """Ask the user a yes/no confirmation question.
 
-    Uses questionary.confirm which presents a Y/n selector.
+    Uses questionary.select with Yes/No choices for modern arrow-key navigation.
     """
-    return questionary.confirm(message=message, default=default).ask() or False
+    choices: list[Choice] = [
+        Choice(title="Yes", value=True),
+        Choice(title="No", value=False),
+    ]
+    default_choice: Choice = choices[0] if default else choices[1]
+    result = questionary.select(message=message, choices=choices, default=default_choice).ask()
+    if result is None:
+        return default
+    return bool(result)
 
 
 def prompt_select(message: str, choices: list[str | Choice], default: str | None = None) -> str | None:
