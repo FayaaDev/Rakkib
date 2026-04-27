@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from rakkib.docker import compose_up, container_running, DockerError
@@ -444,13 +445,19 @@ def verify(state: State) -> VerificationResult:
             "cloudflared container is not running",
         )
 
-    # metrics endpoint responds
-    health = subprocess.run(
-        ["curl", "-fsS", f"http://127.0.0.1:{metrics_port}/metrics"],
-        capture_output=True,
-        text=True,
-    )
-    if health.returncode != 0:
+    # metrics endpoint responds (retry for up to 15 s — cloudflared takes a moment after start)
+    metrics_ok = False
+    for _ in range(5):
+        health = subprocess.run(
+            ["curl", "-fsS", f"http://127.0.0.1:{metrics_port}/metrics"],
+            capture_output=True,
+            text=True,
+        )
+        if health.returncode == 0:
+            metrics_ok = True
+            break
+        time.sleep(3)
+    if not metrics_ok:
         return VerificationResult.failure(
             "cloudflare",
             f"cloudflared metrics endpoint failed on port {metrics_port}",
