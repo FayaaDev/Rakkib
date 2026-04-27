@@ -107,9 +107,12 @@ ensure_python3_and_venv() {
       pkgs+=(python3-venv)
       [[ -n "$pyver" ]] && pkgs+=("python${pyver}-venv")
     fi
+    log "Refreshing apt index..."
+    sudo apt-get update -qq -o Acquire::Retries=3 \
+      || warn "apt-get update failed; continuing with existing index."
     log "Installing ${pkgs[*]} via apt-get..."
     sudo apt-get install -y -qq -o DPkg::Lock::Timeout=60 "${pkgs[@]}" \
-      || die "Failed to install ${pkgs[*]}. Install them manually and rerun."
+      || die "Failed to install ${pkgs[*]}. Run 'sudo apt-get update && sudo apt-get install ${pkgs[*]}' and rerun install.sh."
   elif command_exists dnf; then
     local pkgs=()
     [[ $need_python -eq 1 ]] && pkgs+=(python3)
