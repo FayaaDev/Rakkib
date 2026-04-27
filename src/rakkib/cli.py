@@ -13,6 +13,7 @@ from typing import Any
 import click
 from rich.console import Console
 
+from rakkib.agent_handoff import handoff
 from rakkib.interview import run_interview
 from rakkib.state import State
 from rakkib.steps import VerificationResult
@@ -20,7 +21,13 @@ from rakkib.steps import VerificationResult
 console = Console()
 
 
-def _run_steps(state: State, repo_dir: Path) -> bool:
+def _run_steps(
+    state: State,
+    repo_dir: Path,
+    agent: str = "auto",
+    print_prompt: bool = False,
+    no_agent: bool = False,
+) -> bool:
     """Execute setup steps in order. Return True if all pass."""
     steps: list[tuple[str, str]] = [
         ("10", "rakkib.steps.layout"),
@@ -50,6 +57,17 @@ def _run_steps(state: State, repo_dir: Path) -> bool:
                     console.print(f"[bold red]  Step {label} verify failed:[/bold red] {result.message}")
                     if result.log_path:
                         console.print(f"[dim]  Log: {result.log_path}[/dim]")
+
+                    handoff(
+                        step=result.step,
+                        message=result.message,
+                        log_path=result.log_path,
+                        state=state,
+                        repo_dir=repo_dir,
+                        agent=agent,
+                        print_prompt=print_prompt,
+                        no_agent=no_agent,
+                    )
                     return False
                 console.print(f"[dim]  Step {label} verify passed[/dim]")
             else:
@@ -57,6 +75,17 @@ def _run_steps(state: State, repo_dir: Path) -> bool:
 
         except Exception as exc:
             console.print(f"[bold red]  Step {label} failed:[/bold red] {exc}")
+
+            handoff(
+                step=module_path.rsplit(".", 1)[-1],
+                message=f"{type(exc).__name__}: {exc}",
+                log_path=None,
+                state=state,
+                repo_dir=repo_dir,
+                agent=agent,
+                print_prompt=print_prompt,
+                no_agent=no_agent,
+            )
             return False
 
     console.print("[bold green]All steps completed successfully.[/bold green]")
@@ -69,7 +98,8 @@ def _run_steps(state: State, repo_dir: Path) -> bool:
 def cli(ctx: click.Context) -> None:
     """Rakkib — agent-driven personal server kit."""
     ctx.ensure_object(dict)
-    ctx.obj["repo_dir"] = Path(__file__).resolve().parent.parent.parent
+    if "repo_dir" not in ctx.obj:
+        ctx.obj["repo_dir"] = Path(__file__).resolve().parent.parent.parent
 
 
 @cli.command()
@@ -83,11 +113,6 @@ def init(ctx: click.Context, agent: str, print_prompt: bool, no_agent: bool, res
     if no_agent:
         agent = "none"
 
-    if agent != "auto":
-        console.print(f"[dim]Note: --agent / --no-agent options are not yet implemented (requested: {agent}).[/dim]")
-    if print_prompt:
-        console.print("[dim]Note: --print-prompt is not yet implemented.[/dim]")
-
     console.print("[bold green]Rakkib init[/bold green]")
 
     repo_dir = ctx.obj["repo_dir"]
@@ -97,7 +122,7 @@ def init(ctx: click.Context, agent: str, print_prompt: bool, no_agent: bool, res
     # Auto-resume if state is already confirmed
     if resume or state.is_confirmed():
         console.print("[dim]State is confirmed — resuming step execution.[/dim]")
-        _run_steps(state, repo_dir)
+        _run_steps(state, repo_dir, agent=agent, print_prompt=print_prompt, no_agent=no_agent)
         return
 
     state = run_interview(state, questions_dir=repo_dir / "questions")
@@ -105,7 +130,7 @@ def init(ctx: click.Context, agent: str, print_prompt: bool, no_agent: bool, res
     console.print("[bold green]Interview complete. State saved to .fss-state.yaml[/bold green]")
 
     if state.is_confirmed():
-        _run_steps(state, repo_dir)
+        _run_steps(state, repo_dir, agent=agent, print_prompt=print_prompt, no_agent=no_agent)
     else:
         console.print("[yellow]State is not confirmed — run `rakkib init` again to confirm and execute steps.[/yellow]")
 
