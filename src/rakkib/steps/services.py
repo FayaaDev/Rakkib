@@ -294,6 +294,23 @@ def _handle_homepage(state: State, repo: Path, data_root: Path) -> None:
     services_yaml.write_text("\n".join(lines) + "\n")
 
 
+def _handle_n8n(state: State, repo: Path, data_root: Path) -> None:
+    """Create n8n data directories and fix ownership for the node user (UID 1000)."""
+    for d in (
+        data_root / "data" / "n8n" / "n8n",
+        data_root / "data" / "n8n" / "n8nworkflows",
+    ):
+        d.mkdir(parents=True, exist_ok=True)
+
+    platform = state.get("platform", "linux")
+    if platform == "linux":
+        subprocess.run(
+            ["sudo", "-n", "chown", "-R", "1000:1000", str(data_root / "data" / "n8n")],
+            capture_output=True,
+            text=True,
+        )
+
+
 def _handle_immich(state: State, repo: Path, data_root: Path) -> None:
     """Create Immich data directories."""
     for d in (
@@ -410,6 +427,8 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     # Special per-service rendering
     if svc_id == "authentik":
         _handle_authentik(state, repo, data_root)
+    elif svc_id == "n8n":
+        _handle_n8n(state, repo, data_root)
     elif svc_id == "homepage":
         _handle_homepage(state, repo, data_root)
     elif svc_id == "immich":
