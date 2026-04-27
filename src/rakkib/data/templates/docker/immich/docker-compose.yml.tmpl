@@ -13,9 +13,6 @@ services:
       - immich-database
     networks:
       - {{DOCKER_NET}}
-    healthcheck:
-      disable: false
-
   immich-machine-learning:
     container_name: immich_machine_learning
     image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
@@ -26,9 +23,6 @@ services:
       - model-cache:/cache
     networks:
       - {{DOCKER_NET}}
-    healthcheck:
-      disable: false
-
   immich-redis:
     container_name: immich_redis
     image: docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9

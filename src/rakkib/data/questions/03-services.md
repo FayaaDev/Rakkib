@@ -62,6 +62,11 @@ service_catalog:
       numeric_alias: 9
       subdomain_key: transfer
       default_subdomain: transfer
+    - slug: jellyfin
+      label: Jellyfin
+      numeric_alias: 10
+      subdomain_key: jellyfin
+      default_subdomain: jellyfin
   host_addons:
     - slug: vergo_terminal
       label: VErgo Terminal
@@ -84,12 +89,13 @@ fields:
     type: multi_select
     selection_mode: add_to_empty
     prompt: "Optional Services: type service slugs to add (e.g. `n8n immich`); numeric aliases like `6 8` are also accepted, or press Enter to skip all:"
-    canonical_values: [n8n, dbhub, immich, transfer]
+    canonical_values: [n8n, dbhub, immich, transfer, jellyfin]
     numeric_aliases:
       "6": n8n
       "7": dbhub
       "8": immich
       "9": transfer
+      "10": jellyfin
     records:
       - selected_services
   - id: host_addons
@@ -147,6 +153,7 @@ Optional Services:
   [ ] 7  DBHub         — database browser       →  dbhub.<domain>
   [ ] 8  Immich        — photo library          →  immich.<domain>
   [ ] 9  transfer.sh   — public file sharing    →  transfer.<domain>
+  [ ] 10 Jellyfin      — media server           →  jellyfin.<domain>
 
 Optional Host Addons:
   [ ] 10 VErgo Terminal — zsh, prompt, completions, CLI UX
@@ -219,6 +226,7 @@ subdomains:
   dbhub: dbhub                   # only if dbhub is in selected_services
   immich: immich                 # only if immich is in selected_services
   transfer: transfer             # only if transfer is in selected_services
+  jellyfin: jellyfin             # only if jellyfin is in selected_services
 ```
 
 Record only subdomains for services that are actually selected (foundation or optional).
@@ -235,3 +243,4 @@ During rendering, flatten these values into service placeholders:
 - `subdomains.dbhub`      → `{{DBHUB_SUBDOMAIN}}`
 - `subdomains.immich`     → `{{IMMICH_SUBDOMAIN}}`
 - `subdomains.transfer`   → `{{TRANSFER_SUBDOMAIN}}`
+- `subdomains.jellyfin`   → `{{JELLYFIN_SUBDOMAIN}}`

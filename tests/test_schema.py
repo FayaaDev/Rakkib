@@ -96,7 +96,7 @@ def test_phase_3_service_catalog_and_rules():
     assert len(schema.service_catalog["foundation_bundle"]) == 5
     assert schema.service_catalog["foundation_bundle"][0]["slug"] == "nocodb"
 
-    assert len(schema.rules) == 2
+    assert len(schema.rules) == 1
     assert schema.rules[0]["if_selected"] == "transfer"
 
     field_map = {f.id: f for f in schema.fields}

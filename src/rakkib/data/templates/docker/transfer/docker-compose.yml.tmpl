@@ -13,7 +13,7 @@ services:
       - --listener
       - ":8080"
       - --email-contact
-      - "{{ADMIN_EMAIL}}"
+      - "${EMAIL_CONTACT}"
       - --purge-days
       - "${TRANSFER_PURGE_DAYS:-14}"
       - --purge-interval
