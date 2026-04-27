@@ -98,7 +98,14 @@ def run(state: State) -> None:
         state,
     )
 
-    # 10. Start or update container.
+    # 10. Check if Caddy was already running before we start/update.
+    was_running = subprocess.run(
+        ["docker", "ps", "-q", "-f", "name=^caddy$"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    # 11. Start or update container.
     up = subprocess.run(
         ["docker", "compose", "up", "-d"],
         cwd=str(caddy_dir),
@@ -108,13 +115,8 @@ def run(state: State) -> None:
     if up.returncode != 0:
         raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}")
 
-    # 11. Reload if already running.
-    ps = subprocess.run(
-        ["docker", "ps", "-q", "-f", "name=^caddy$"],
-        capture_output=True,
-        text=True,
-    )
-    if ps.stdout.strip():
+    # 12. Reload if Caddy was already running (otherwise up -d applied the config).
+    if was_running:
         reload = subprocess.run(
             [
                 "docker", "compose", "exec", "caddy",
