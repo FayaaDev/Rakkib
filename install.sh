@@ -247,8 +247,13 @@ ensure_pipx() {
   log "pipx not found. Installing pipx..."
 
   if command_exists apt-get; then
-    sudo apt update && sudo apt install -y pipx && pipx ensurepath -y
-    command_exists pipx && return 0
+    for i in 1 2 3 4 5; do
+      if sudo apt update -qq 2>/dev/null && sudo apt install -y -qq pipx 2>/dev/null; then
+        pipx ensurepath -y 2>/dev/null || true
+        command_exists pipx && return 0
+      fi
+      sleep 5
+    done
   fi
 
   command_exists pipx || die "pipx installation failed. Install pipx manually (https://pypa.github.io/pipx/) and rerun."
