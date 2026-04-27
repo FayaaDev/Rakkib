@@ -1,18 +1,56 @@
-# Agent Protocol
+# Agent Protocol (Human Reference)
 
-This file defines the exact operating procedure for any coding agent using this repository as an installer.
+This document is the human-readable specification for the Rakkib installer. The authoritative runtime is the `rakkib` Python binary, which consumes the AgentSchema YAML embedded in `questions/*.md` and implements every deterministic phase and step.
+
+Agents are invoked **only as escape hatches** for the parts that genuinely need judgment. Do not treat this file as a runtime prompt — the binary owns the loop.
 
 ## Global Rules
 
-1. Read `AGENT_PROTOCOL.md`, `registry.yaml`, `lib/placeholders.md`, and the current question file before acting.
+1. Read `AGENT_PROTOCOL.md`, `registry.yaml`, `lib/placeholders.md`, and the current step file before acting.
 2. Use `.fss-state.yaml` as the single source of truth for collected answers and derived values.
 3. Do not write outside the repo during Phases 1 through 6.
-4. Ask questions exactly in order. Validate and normalize answers before recording them. When a value is marked as host-detected, run the required local command instead of asking the user.
-5. Do not skip required phases even if values seem obvious.
-6. After confirmation, execute the step files in numeric order.
-7. Stop on any failed `## Verify` block. Fix the issue before advancing.
+4. The binary drives the interview in Phases 1–6. Agents are not involved in form-filling, validation, or normalization.
+5. Do not skip required phases even if values seem obvious — the binary handles this.
+6. After confirmation, the binary executes the step files in numeric order. The agent does not orchestrate steps.
+7. If the binary stops on a failed `## Verify` block, it may hand off to an agent with a narrow prompt. Fix the issue before the binary resumes.
 8. Prefer minimal edits on the target machine. Follow `lib/idempotency.md` for every re-apply and preserve existing user data or secrets unless explicitly replacing them.
 9. Never rotate an existing `N8N_ENCRYPTION_KEY`.
+
+## Architecture — Wizard Spine, Agent Escape Hatch
+
+The binary owns everything deterministic. The agent is invoked only when the binary explicitly hands off.
+
+### Binary owns
+- Phases 1–6 interview, driven directly by the AgentSchema YAML in each `questions/*.md`
+- `.fss-state.yaml` read/write/merge and resume detection
+- Host detection (`uname -m`, `id -u`, `hostname -I`, `ipconfig getifaddr en0`)
+- Secret generation (openssl-backed)
+- Template rendering (placeholder substitution per `lib/placeholders.md`)
+- Steps 00 / 10 / 30 / 50 / 60 / 80 / 90 (prereqs, layout, caddy, postgres, services, cron, verify)
+- Idempotent re-apply on every step
+- `rakkib add <service>` and `rakkib status` post-install commands
+
+### Agent owns
+- Step 40 Cloudflare auth handoff (browser flow, headless device flow, account ambiguity)
+- Any failed `## Verify` block — binary launches the agent with a *narrow* prompt: failed step name, last N lines of the relevant log, the state slice it needs, and the specific step file — **not** this whole document.
+- Post-install conversational mode (`rakkib doctor --interactive`)
+
+## Agent Escape Hatch Contract
+
+When the binary hands off to an agent, it provides exactly:
+
+1. **Failed step name** — e.g. `steps/60-services.md`
+2. **Log tail** — last N lines from `${DATA_ROOT}/logs/<step>.log`
+3. **State slice** — the subset of `.fss-state.yaml` relevant to that step
+4. **Specific files** — the step file and any referenced templates or configs
+
+The agent must:
+- Diagnose the single failure
+- Return a concise diagnosis and the exact command or file change needed
+- Not stream `docker compose` output through its context window
+- Not attempt to run the next step or restart the install
+
+The binary will apply the fix (or ask the user for confirmation) and resume.
 
 ## AgentSchema Contract
 
@@ -387,6 +425,38 @@ Derived value rules:
 - In `secrets.mode: manual`, require explicit values only for the keys selected by the schema above.
 - Render templates only after every placeholder they need has either a collected value or a deterministic derived value recorded in `.fss-state.yaml`.
 
+## Phase & Step Execution (Binary-Owned)
+
+The binary executes the following automatically. Agents do not drive these.
+
+### Phase Order (Interview)
+
+1. `questions/01-platform.md`
+2. `questions/02-identity.md`
+3. `questions/03-services.md`
+4. `questions/04-cloudflare.md`
+5. `questions/05-secrets.md`
+6. `questions/06-confirm.md`
+
+Resume is automatic: the binary loads state, finds the first phase with unset required keys, and starts there. If `confirmed: true`, it asks once whether to start over.
+
+### Execution Order (Steps)
+
+After confirmation, the binary runs these in numeric order:
+
+1. `steps/00-prereqs.md`
+2. `steps/10-layout.md`
+3. `steps/30-caddy.md`
+4. `steps/40-cloudflare.md` — may hand off to agent for auth
+5. `steps/50-postgres.md`
+6. `steps/60-services.md`
+7. `steps/70-host-agents.md`
+8. `steps/72-host-customization.md`
+9. `steps/80-cron-jobs.md`
+10. `steps/90-verify.md`
+
+Run `docs/runbooks/restore-test.md` only when explicitly performing a restore dry run or restore round-trip test. It is not part of the first-install step sequence.
+
 ## Render Context Rules
 
 Before rendering any template, flatten `.fss-state.yaml` into a direct placeholder map. Do not guess names and do not render from nested keys implicitly.
@@ -461,45 +531,6 @@ Rendering guardrails:
 - Do not leave unresolved placeholders in rendered target-machine files.
 - If a required placeholder is missing from the render context, stop and fix the state before continuing.
 
-## Phase Order
-
-### Phase 1
-Run `questions/01-platform.md`.
-
-### Phase 2
-Run `questions/02-identity.md`.
-
-### Phase 3
-Run `questions/03-services.md` to collect services and host addons.
-
-### Phase 4
-Run `questions/04-cloudflare.md`.
-
-### Phase 5
-Run `questions/05-secrets.md`.
-
-### Phase 6
-Run `questions/06-confirm.md`.
-
-Only after `confirmed: true` may the agent modify the target machine.
-
-## Execution Order
-
-After confirmation, run these step files in numeric order:
-
-1. `steps/00-prereqs.md`
-2. `steps/10-layout.md`
-3. `steps/30-caddy.md`
-4. `steps/40-cloudflare.md`
-5. `steps/50-postgres.md`
-6. `steps/60-services.md`
-7. `steps/70-host-agents.md`
-8. `steps/72-host-customization.md`
-9. `steps/80-cron-jobs.md`
-10. `steps/90-verify.md`
-
-Run `docs/runbooks/restore-test.md` only when explicitly performing a restore dry run or restore round-trip test. It is not part of the first-install step sequence.
-
 ## Rendering Rules
 
 1. Render by direct placeholder substitution only.
@@ -529,7 +560,7 @@ Run `docs/runbooks/restore-test.md` only when explicitly performing a restore dr
 
 ## Privilege Rules
 
-1. Linux orchestration is user-first. The bootstrapper should be run as `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/Simplify/install.sh | bash`.
+1. Linux orchestration is user-first. The bootstrapper should be run as `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash`.
 2. Do not run the full AI agent session as root by default. If Rakkib is run as root, it must warn and ask the user to confirm before continuing.
 3. In Phase 1 on Linux, check `id -u`. If it is not `0`, record `privilege_mode: sudo` and `privilege_strategy: on_demand`; continue the interview unprivileged.
 4. If `id -u` is `0`, record `privilege_mode: root` and `privilege_strategy: root_process`, but warn the user that root orchestration is intended only for repair/debug sessions. If `SUDO_USER` is set, ask whether to restart as that admin user before continuing.

@@ -1,7 +1,27 @@
 # CLAUDE.md
 
-Read `AGENT_PROTOCOL.md` first. It is the single normative installer spec for Rakkib; `registry.yaml`, `lib/placeholders.md`, and the current question or step file provide the supporting context.
+The `rakkib` Python binary owns the installer. It drives Phases 1–6, renders templates, runs steps, and manages `.fss-state.yaml`. **You are an escape hatch, not the driver.**
 
+## When you are invoked
+
+The binary hands off to Claude (or another agent) only in these situations:
+
+1. **Step 40 — Cloudflare auth handoff.** Browser login on a headless server, API-token ambiguity, or account-selection judgment.
+2. **A failed `## Verify` block.** The binary gives you a *narrow* prompt: failed step name, last N lines of the relevant log, the state slice you need, and the specific step file — **not** the full `AGENT_PROTOCOL.md`.
+3. **Post-install conversational mode.** `rakkib doctor --interactive` or `rakkib add <service>` when the user asks follow-up questions that need judgment.
+
+Do not attempt to run Phases 1–6 or Steps 00/10/30/50/60/80/90 yourself. The binary does that deterministically.
+
+## Before you act
+
+1. Read the specific step file the binary named in its handoff prompt.
+2. Read `.fss-state.yaml` for the current state slice.
+3. Read `lib/placeholders.md` and `lib/idempotency.md` for render and re-apply rules.
+4. Do not write outside this repo until `questions/06-confirm.md` records `confirmed: true` in `.fss-state.yaml`.
+
+## After the handoff
+
+Return a concise diagnosis and the exact command or file change needed. The binary will apply it (or ask the user for confirmation). Do not stream `docker compose` output through your context window.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker

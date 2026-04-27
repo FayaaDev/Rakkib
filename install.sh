@@ -98,8 +98,133 @@ confirm_root() {
   fi
 }
 
+_detect_package_manager() {
+  if command_exists apt-get; then
+    echo "apt-get"
+  elif command_exists dnf; then
+    echo "dnf"
+  elif command_exists yum; then
+    echo "yum"
+  elif command_exists pacman; then
+    echo "pacman"
+  elif command_exists brew; then
+    echo "brew"
+  elif command_exists apk; then
+    echo "apk"
+  else
+    echo ""
+  fi
+}
+
+_install_system_python_deps() {
+  local pkg_mgr
+  pkg_mgr="$(_detect_package_manager)"
+  if [[ -z "$pkg_mgr" ]]; then
+    return 1
+  fi
+
+  local packages=""
+  case "$pkg_mgr" in
+    apt-get)
+      packages="python3-pip python3-venv"
+      ;;
+    dnf|yum)
+      packages="python3-pip"
+      ;;
+    pacman)
+      packages="python-pip"
+      ;;
+    brew)
+      packages="pipx"
+      ;;
+    apk)
+      packages="py3-pip"
+      ;;
+  esac
+
+  if [[ -z "$packages" ]]; then
+    return 1
+  fi
+
+  log "pipx could not be installed. The following system packages may be required: ${packages}."
+  local answer
+  printf 'Install them via %s? (y/N) ' "$pkg_mgr" > /dev/tty
+  IFS= read -r answer < /dev/tty || return 1
+  case "$answer" in
+    y|Y) ;;
+    *) return 1 ;;
+  esac
+
+  case "$pkg_mgr" in
+    apt-get)
+      sudo apt-get update -qq >/dev/null 2>&1 || true
+      sudo apt-get install -y -qq $packages >/dev/null 2>&1 || return 1
+      ;;
+    dnf)
+      sudo dnf install -y $packages >/dev/null 2>&1 || return 1
+      ;;
+    yum)
+      sudo yum install -y $packages >/dev/null 2>&1 || return 1
+      ;;
+    pacman)
+      sudo pacman -Sy --noconfirm $packages >/dev/null 2>&1 || return 1
+      ;;
+    brew)
+      brew install $packages >/dev/null 2>&1 || return 1
+      ;;
+    apk)
+      sudo apk add $packages >/dev/null 2>&1 || return 1
+      ;;
+  esac
+  return 0
+}
+
 ensure_python3() {
-  command_exists python3 || die "python3 is required. Install python3, then rerun this bootstrapper."
+  if command_exists python3; then
+    return 0
+  fi
+
+  log "python3 not found."
+  local pkg_mgr
+  pkg_mgr="$(_detect_package_manager)"
+  if [[ -z "$pkg_mgr" ]]; then
+    die "python3 is required. Install python3, then rerun this bootstrapper."
+  fi
+
+  local packages="python3"
+  [[ "$pkg_mgr" == "brew" ]] && packages="python"
+
+  local answer
+  printf 'Install %s via %s? (y/N) ' "$packages" "$pkg_mgr" > /dev/tty
+  IFS= read -r answer < /dev/tty || die "python3 is required. Install python3, then rerun this bootstrapper."
+  case "$answer" in
+    y|Y) ;;
+    *) die "python3 is required. Install python3, then rerun this bootstrapper." ;;
+  esac
+
+  case "$pkg_mgr" in
+    apt-get)
+      sudo apt-get update -qq >/dev/null 2>&1 || true
+      sudo apt-get install -y -qq $packages >/dev/null 2>&1 || die "Failed to install python3 via apt-get."
+      ;;
+    dnf)
+      sudo dnf install -y $packages >/dev/null 2>&1 || die "Failed to install python3 via dnf."
+      ;;
+    yum)
+      sudo yum install -y $packages >/dev/null 2>&1 || die "Failed to install python3 via yum."
+      ;;
+    pacman)
+      sudo pacman -Sy --noconfirm $packages >/dev/null 2>&1 || die "Failed to install python3 via pacman."
+      ;;
+    brew)
+      brew install $packages >/dev/null 2>&1 || die "Failed to install python via brew."
+      ;;
+    apk)
+      sudo apk add $packages >/dev/null 2>&1 || die "Failed to install python3 via apk."
+      ;;
+  esac
+
+  command_exists python3 || die "python3 installation failed. Install python3 manually and rerun."
 }
 
 ensure_pipx() {
@@ -118,7 +243,23 @@ ensure_pipx() {
   fi
   if [[ -x "${HOME}/.local/bin/pipx" ]]; then
     export PATH="${HOME}/.local/bin:${PATH}"
+    return 0
   fi
+
+  # Try installing system python deps and retry
+  if _install_system_python_deps; then
+    log "Retrying pipx installation..."
+    if command_exists pip3; then
+      pip3 install --user pipx >/dev/null 2>&1 || true
+    fi
+    if ! command_exists pipx && command_exists python3; then
+      python3 -m pip install --user pipx >/dev/null 2>&1 || true
+    fi
+    if [[ -x "${HOME}/.local/bin/pipx" ]]; then
+      export PATH="${HOME}/.local/bin:${PATH}"
+    fi
+  fi
+
   command_exists pipx || die "pipx installation failed. Install pipx manually (https://pypa.github.io/pipx/) and rerun."
 }
 

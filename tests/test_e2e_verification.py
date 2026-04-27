@@ -54,7 +54,7 @@ class TestFreshVmInstall:
             f"""\
             set -e
             source "{script}"
-            # Mock: no pipx on PATH, no pip3, no python3 -m pip
+            # Mock: no pipx on PATH, no pip3, no python3 -m pip, no package manager
             command_exists() {{ false; }}
             # Should fall through to die
             ensure_pipx 2>/dev/null || echo "EXPECTED_FAILURE"
@@ -67,6 +67,35 @@ class TestFreshVmInstall:
             cwd=str(tmp_path),
         )
         assert "EXPECTED_FAILURE" in result.stdout or result.returncode != 0
+
+    def test_install_script_offers_to_install_pip_deps(self, tmp_path: Path):
+        """When pipx can't be installed via pip, install.sh offers system packages."""
+        script = Path(__file__).resolve().parent.parent / "install.sh"
+        bash_code = textwrap.dedent(
+            f"""\
+            set -e
+            source "{script}"
+            # Mock package manager detection
+            _detect_package_manager() {{ echo "apt-get"; }}
+            # Mock sudo to avoid actual system changes and capture the call
+            sudo() {{
+              echo "MOCK_SUDO $*"
+              return 0
+            }}
+            export -f _detect_package_manager sudo
+            # Feed 'y' to the prompt, verify it triggers system install
+            _install_system_python_deps <<< "y"
+            """
+        )
+        result = subprocess.run(
+            ["bash", "-c", bash_code],
+            capture_output=True,
+            text=True,
+            cwd=str(tmp_path),
+        )
+        assert result.returncode == 0
+        assert "MOCK_SUDO" in result.stdout
+        assert "apt-get" in result.stdout
 
     def test_install_script_prepare_repo_clone(self, tmp_path: Path):
         """prepare_repo should clone into the target directory."""
