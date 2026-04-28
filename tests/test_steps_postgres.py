@@ -75,6 +75,34 @@ def test_generate_init_sql_falls_back_to_flat_state_secret(tmp_path):
     assert "CREATE ROLE authentik WITH LOGIN PASSWORD 'flat-authentik-pass';" in content
 
 
+def test_generate_init_sql_includes_all_selected_db_services(tmp_path):
+    state = _make_state(tmp_path)
+    state.set("secrets.values.POSTGRES_PASSWORD", "postgres-pass")
+    state.set("secrets.values.NOCODB_DB_PASS", "nocodb-pass")
+    state.set("secrets.values.AUTHENTIK_DB_PASS", "authentik-pass")
+    state.set("secrets.values.N8N_DB_PASS", "n8n-pass")
+
+    content = postgres._generate_init_sql(state)
+
+    assert "CREATE ROLE nocodb WITH LOGIN PASSWORD 'nocodb-pass';" in content
+    assert "CREATE DATABASE nocodb_db OWNER nocodb" in content
+    assert "CREATE ROLE authentik WITH LOGIN PASSWORD 'authentik-pass';" in content
+    assert "CREATE DATABASE authentik OWNER authentik" in content
+    assert "CREATE ROLE n8n WITH LOGIN PASSWORD 'n8n-pass';" in content
+    assert "CREATE DATABASE n8n_db OWNER n8n" in content
+
+
+def test_generate_init_sql_raises_when_service_password_missing(tmp_path):
+    state = _make_state(tmp_path)
+    state.set("secrets.values.NOCODB_DB_PASS", "nocodb-pass")
+    state.set("secrets.values.AUTHENTIK_DB_PASS", None)
+    state.set("AUTHENTIK_DB_PASS", None)
+    state.set("secrets.values.N8N_DB_PASS", "n8n-pass")
+
+    with pytest.raises(RuntimeError, match="AUTHENTIK_DB_PASS"):
+        postgres._generate_init_sql(state)
+
+
 def test_postgres_run_merges_existing_env(tmp_path):
     state = _make_state(tmp_path)
     postgres_dir = tmp_path / "docker" / "postgres"

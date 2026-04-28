@@ -341,6 +341,51 @@ class TestSpecialHandlers:
         assert sync_script.exists()
         assert any("uptime-kuma" in str(call.args[0]) for call in mock_run.call_args_list)
 
+    @patch("rakkib.hooks.services.subprocess.run")
+    def test_service_postgres_login_preflight_uses_service_contract(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        state = State({"secrets": {"values": {"N8N_DB_PASS": "db-pass"}}})
+        svc = {"id": "n8n", "postgres": {"role": "n8n", "db": "n8n_db", "password_key": "N8N_DB_PASS"}}
+
+        service_hooks.service_postgres_login_preflight(state, svc, Path("."), Path("."), Path("hook.log"), {})
+
+        mock_run.assert_called_once_with(
+            [
+                "docker",
+                "exec",
+                "-e",
+                "PGPASSWORD=db-pass",
+                "postgres",
+                "psql",
+                "-h",
+                "127.0.0.1",
+                "-U",
+                "n8n",
+                "-d",
+                "n8n_db",
+                "-c",
+                "select 1;",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_service_postgres_login_preflight_raises_when_password_missing(self):
+        state = State({"secrets": {"values": {}}})
+        svc = {"id": "authentik", "postgres": {"role": "authentik", "password_key": "AUTHENTIK_DB_PASS"}}
+
+        with pytest.raises(RuntimeError, match="AUTHENTIK_DB_PASS"):
+            service_hooks.service_postgres_login_preflight(state, svc, Path("."), Path("."), Path("hook.log"), {})
+
+    @patch("rakkib.hooks.services.subprocess.run")
+    def test_service_postgres_login_preflight_raises_on_failed_login(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=2, stdout="", stderr="password authentication failed")
+        state = State({"AUTHENTIK_DB_PASS": "bad-pass"})
+        svc = {"id": "authentik", "postgres": {"role": "authentik", "password_key": "AUTHENTIK_DB_PASS"}}
+
+        with pytest.raises(RuntimeError, match="service 'authentik'"):
+            service_hooks.service_postgres_login_preflight(state, svc, Path("."), Path("."), Path("hook.log"), {})
+
 
 class TestRemoveSingleService:
     @patch("rakkib.steps.services.compose_down")
