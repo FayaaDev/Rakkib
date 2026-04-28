@@ -62,7 +62,7 @@ def test_postgres_run_generates_init_sql(tmp_path):
     assert "CREATE ROLE nocodb" in content
     assert "CREATE ROLE authentik" in content
     assert "CREATE ROLE n8n" in content
-    assert "CREATE DATABASE nocodb OWNER nocodb" in content
+    assert "CREATE DATABASE nocodb_db OWNER nocodb" in content
 
 
 def test_postgres_run_merges_existing_env(tmp_path):

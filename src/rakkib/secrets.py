@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import secrets
 import string
+from typing import Callable
 
 from rakkib.state import State
 
@@ -33,9 +34,17 @@ def generate_oidc_client_secret() -> str:
     return generate_password(64)
 
 
+FACTORIES: dict[str, Callable[..., str]] = {
+    "password": generate_password,
+    "secret_key": generate_secret_key,
+    "oidc_client_id": generate_oidc_client_id,
+    "oidc_client_secret": generate_oidc_client_secret,
+}
+
+
 # Mapping of registry env_keys to their generator functions.
 # These correspond to the env_keys declared in registry.yaml.
-SECRET_GENERATORS: dict[str, callable] = {
+SECRET_GENERATORS: dict[str, Callable[[], str]] = {
     "POSTGRES_PASSWORD": lambda: generate_password(32),
     "NOCODB_DB_PASS": lambda: generate_password(32),
     "AUTHENTIK_DB_PASS": lambda: generate_password(32),

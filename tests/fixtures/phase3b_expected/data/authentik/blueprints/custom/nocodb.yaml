@@ -1,0 +1,25 @@
+version: 1
+metadata:
+  name: Rakkib - NocoDB OIDC
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    state: present
+    identifiers:
+      name: provider-nocodb
+    attrs:
+      name: provider-nocodb
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      client_type: confidential
+      client_id: "nocodb-oidc-client-id"
+      client_secret: "nocodb-oidc-client-secret"
+      redirect_uris: "https://data.example.com/api/v1/auth/oidc/callback"
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: nocodb
+    attrs:
+      name: NocoDB
+      slug: nocodb
+      provider: !Find [authentik_providers_oauth2.oauth2provider, [name, provider-nocodb]]

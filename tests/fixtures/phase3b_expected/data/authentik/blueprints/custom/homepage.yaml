@@ -1,0 +1,22 @@
+version: 1
+metadata:
+  name: Rakkib - Homepage Proxy
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    identifiers:
+      name: provider-homepage
+    attrs:
+      name: provider-homepage
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      external_host: "https://home.example.com"
+      mode: forward_single
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: homepage
+    attrs:
+      name: Homepage
+      slug: homepage
+      provider: !Find [authentik_providers_proxy.proxyprovider, [name, provider-homepage]]

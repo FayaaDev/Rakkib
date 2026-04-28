@@ -123,3 +123,9 @@ def test_render_text_with_underscore_key():
     state = State({"tunnel_uuid": "abc-123"})
     result = render_text("UUID={{TUNNEL_UUID}}", state)
     assert result == "UUID=abc-123"
+
+
+def test_render_text_service_enabled_boolean():
+    state = State({"foundation_services": ["authentik"]})
+    result = render_text("{% if AUTHENTIK_ENABLED %}yes{% else %}no{% endif %}", state)
+    assert result == "yes"

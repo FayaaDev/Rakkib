@@ -1,0 +1,22 @@
+version: 1
+metadata:
+  name: Rakkib - DBHub Proxy
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    identifiers:
+      name: provider-dbhub
+    attrs:
+      name: provider-dbhub
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      external_host: "https://db.example.com"
+      mode: forward_single
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: dbhub
+    attrs:
+      name: DBHub
+      slug: dbhub
+      provider: !Find [authentik_providers_proxy.proxyprovider, [name, provider-dbhub]]

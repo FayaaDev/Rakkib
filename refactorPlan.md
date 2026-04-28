@@ -393,16 +393,16 @@ As each item is completed, replace the `[ ]` with `[x] **done**` and (where usef
 - [x] **done** K `data_dirs` + optional `chown` from registry — added `_prepare_service_data()` and removed hardcoded n8n/immich/transfer filesystem prep
 
 ### Phase 3b — Hooks layer + secrets/postgres walk
-- [ ] Lift `selected_service_defs` topo-sort helper to `steps/__init__.py`
-- [ ] B `if/elif svc_id` dispatch → `hooks/services.py` registry
-- [ ] C `_HOMEPAGE_CARDS` → registry `homepage:` block
-- [ ] D `_generate_missing_secrets` → registry `secrets:`/`conditional_secrets:` walk + `FACTORIES` dict
-- [ ] G NocoDB OIDC gating moves into `.env.example` template + per-service `<id>_enabled` boolean
-- [ ] H Authentik pre/post-start hooks moved behind hook registry
-- [ ] I `blueprint_map` → registry `authentik.blueprint`
-- [ ] J `_generate_init_sql` walks selected services with `postgres:` block
-- [ ] `tests/test_registry_consistency.py` (paths/hooks resolvable)
-- [ ] Output-equivalence diff check on a frozen sample state YAML
+- [x] **done** Lift `selected_service_defs` topo-sort helper to `steps/__init__.py` — added shared `load_service_registry()`, `selected_service_defs()`, and `service_enabled_key()`
+- [x] **done** B `if/elif svc_id` dispatch → `hooks/services.py` registry — service deploy now runs named `post_render`/`pre_start`/`post_start` hooks
+- [x] **done** C `_HOMEPAGE_CARDS` → registry `homepage:` block — homepage YAML now renders from per-service registry metadata
+- [x] **done** D `_generate_missing_secrets` → registry `secrets:`/`conditional_secrets:` walk + `FACTORIES` dict
+- [x] **done** G NocoDB OIDC gating moves into `.env.example` template + per-service `<id>_enabled` boolean
+- [x] **done** H Authentik pre/post-start hooks moved behind hook registry
+- [x] **done** I `blueprint_map` → registry `authentik.blueprint`
+- [x] **done** J `_generate_init_sql` walks selected services with `postgres:` block
+- [x] **done** `tests/test_registry_consistency.py` (paths/hooks resolvable)
+- [x] **done** Output-equivalence snapshot check on a frozen sample state YAML — added `tests/fixtures/sample_state.yaml`, expected rendered outputs under `tests/fixtures/phase3b_expected/`, and `tests/test_phase3b_output_snapshot.py`
 
 ---
 

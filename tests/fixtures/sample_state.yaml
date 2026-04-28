@@ -1,0 +1,71 @@
+domain: example.com
+docker_net: caddy_net
+platform: linux
+admin_user: faya
+tz: Asia/Riyadh
+foundation_services:
+  - nocodb
+  - authentik
+  - homepage
+  - uptime-kuma
+  - dockge
+selected_services:
+  - n8n
+  - dbhub
+  - immich
+  - transfer
+  - jellyfin
+subdomains:
+  nocodb: data
+  authentik: auth
+  homepage: home
+  uptime-kuma: status
+  dockge: dock
+  n8n: flow
+  dbhub: db
+  immich: photos
+  transfer: send
+  jellyfin: media
+NOCODB_SUBDOMAIN: data
+AUTHENTIK_SUBDOMAIN: auth
+HOMEPAGE_SUBDOMAIN: home
+UPTIME_KUMA_SUBDOMAIN: status
+DOCKGE_SUBDOMAIN: dock
+N8N_SUBDOMAIN: flow
+DBHUB_SUBDOMAIN: db
+IMMICH_SUBDOMAIN: photos
+TRANSFER_SUBDOMAIN: send
+JELLYFIN_SUBDOMAIN: media
+POSTGRES_PASSWORD: postgres-pass
+NOCODB_ADMIN_PASS: nocodb-admin-pass
+NOCODB_DB_PASS: nocodb-db-pass
+AUTHENTIK_SECRET_KEY: authentik-secret-key-1234567890
+AUTHENTIK_DB_PASS: authentik-db-pass
+AUTHENTIK_ADMIN_PASS: authentik-admin-pass
+N8N_DB_PASS: n8n-db-pass
+N8N_ENCRYPTION_KEY: n8n-encryption-key-123456789012
+IMMICH_DB_PASSWORD: immich-db-password-123456789012
+IMMICH_VERSION: release
+NOCODB_OIDC_CLIENT_ID: nocodb-oidc-client-id
+NOCODB_OIDC_CLIENT_SECRET: nocodb-oidc-client-secret
+ADMIN_EMAIL: admin@example.com
+TZ: Asia/Riyadh
+cloudflare:
+  ssh_subdomain: ssh
+lan_ip: 192.168.0.10
+secrets:
+  mode: manual
+  n8n_mode: fresh
+  values:
+    POSTGRES_PASSWORD: postgres-pass
+    NOCODB_ADMIN_PASS: nocodb-admin-pass
+    NOCODB_DB_PASS: nocodb-db-pass
+    AUTHENTIK_SECRET_KEY: authentik-secret-key-1234567890
+    AUTHENTIK_DB_PASS: authentik-db-pass
+    AUTHENTIK_ADMIN_PASS: authentik-admin-pass
+    N8N_DB_PASS: n8n-db-pass
+    N8N_ENCRYPTION_KEY: n8n-encryption-key-123456789012
+    IMMICH_DB_PASSWORD: immich-db-password-123456789012
+    IMMICH_VERSION: release
+    NOCODB_OIDC_CLIENT_ID: nocodb-oidc-client-id
+    NOCODB_OIDC_CLIENT_SECRET: nocodb-oidc-client-secret

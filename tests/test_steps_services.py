@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+from rakkib.hooks import services as service_hooks
 from rakkib.state import State
+from rakkib.steps import selected_service_defs
 from rakkib.steps import VerificationResult
 from rakkib.steps import services as services_step
 
@@ -54,7 +56,7 @@ class TestSelectedServiceDefs:
             "selected_services": ["homepage"],
         })
         registry = services_step._load_registry()
-        defs = services_step._selected_service_defs(state, registry)
+        defs = selected_service_defs(state, registry)
         ids = [d["id"] for d in defs]
         # homepage and authentik both have in-degree 0 (postgres not selected),
         # so they sort alphabetically: authentik, homepage, nocodb
@@ -63,7 +65,7 @@ class TestSelectedServiceDefs:
     def test_skips_unselected(self, fake_repo: Path):
         state = State({"foundation_services": ["nocodb"]})
         registry = services_step._load_registry()
-        defs = services_step._selected_service_defs(state, registry)
+        defs = selected_service_defs(state, registry)
         ids = [d["id"] for d in defs]
         assert "authentik" not in ids
         assert "homepage" not in ids
@@ -168,10 +170,8 @@ class TestRun:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")
     @patch("rakkib.steps.services._reload_caddy")
-    @patch("rakkib.steps.services.health_check")
     def test_deploys_selected_services(
         self,
-        mock_health: MagicMock,
         mock_reload: MagicMock,
         mock_compose: MagicMock,
         mock_repo: MagicMock,
@@ -196,10 +196,8 @@ class TestRun:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")
     @patch("rakkib.steps.services._reload_caddy")
-    @patch("rakkib.steps.services.health_check")
     def test_skips_host_service(
         self,
-        mock_health: MagicMock,
         mock_reload: MagicMock,
         mock_compose: MagicMock,
         mock_repo: MagicMock,
@@ -220,10 +218,8 @@ class TestRun:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")
     @patch("rakkib.steps.services._reload_caddy")
-    @patch("rakkib.steps.services.health_check")
     def test_renders_env_from_example(
         self,
-        mock_health: MagicMock,
         mock_reload: MagicMock,
         mock_compose: MagicMock,
         mock_repo: MagicMock,
@@ -275,32 +271,36 @@ class TestRunSingleService:
 
 
 class TestSpecialHandlers:
-    def test_handle_homepage(self, fake_repo, tmp_path):
-        tmpl = fake_repo / "templates" / "docker" / "homepage" / "services.yaml.tmpl"
-        tmpl.parent.mkdir(parents=True, exist_ok=True)
-        tmpl.write_text("# homepage services")
-        state = State({"data_root": str(tmp_path)})
-        services_step._handle_homepage(state, fake_repo, tmp_path)
-        assert (tmp_path / "data" / "homepage" / "config" / "services.yaml").exists()
+    def test_homepage_hook_writes_services_yaml(self, tmp_path):
+        state = State(
+            {
+                "foundation_services": ["nocodb", "homepage"],
+                "selected_services": ["dbhub"],
+                "domain": "example.com",
+                "subdomains": {"nocodb": "data", "dbhub": "sql"},
+            }
+        )
+        registry = services_step._load_registry()
+        service_hooks.homepage_services_yaml(state, {}, tmp_path, tmp_path, tmp_path / "hook.log", registry)
+        content = (tmp_path / "data" / "homepage" / "config" / "services.yaml").read_text()
+        assert "NocoDB" in content
+        assert "https://data.example.com" in content
+        assert "DBHub" in content
 
-    def test_handle_immich(self, fake_repo, tmp_path):
-        state = State({"data_root": str(tmp_path)})
-        services_step._handle_immich(state, fake_repo, tmp_path)
-        assert (tmp_path / "data" / "immich" / "library").is_dir()
-        assert (tmp_path / "data" / "immich" / "postgres").is_dir()
-
-    def test_handle_transfer(self, fake_repo, tmp_path):
-        state = State({"data_root": str(tmp_path), "platform": "mac"})
-        services_step._handle_transfer(state, fake_repo, tmp_path)
-        assert (tmp_path / "data" / "transfer").is_dir()
-
-    def test_handle_dbhub(self, fake_repo, tmp_path):
+    def test_render_extra_templates(self, fake_repo, tmp_path):
         tmpl = fake_repo / "templates" / "docker" / "dbhub" / "dbhub.toml.tmpl"
         tmpl.parent.mkdir(parents=True, exist_ok=True)
         tmpl.write_text("# dbhub config")
-        (tmp_path / "docker" / "dbhub").mkdir(parents=True, exist_ok=True)
-        state = State({"data_root": str(tmp_path)})
-        services_step._handle_dbhub(state, fake_repo, tmp_path)
+        state = State({})
+        svc = {
+            "extra_templates": [
+                {
+                    "src": "templates/docker/dbhub/dbhub.toml.tmpl",
+                    "dst": "docker/dbhub/dbhub.toml",
+                }
+            ]
+        }
+        services_step._render_extra_templates(state, svc, fake_repo, tmp_path)
         assert (tmp_path / "docker" / "dbhub" / "dbhub.toml").exists()
 
 

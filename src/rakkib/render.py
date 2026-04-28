@@ -15,20 +15,25 @@ from typing import Any
 from jinja2 import DebugUndefined, Environment
 
 from rakkib.state import State
+from rakkib.steps import service_enabled_key
 
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_][A-Z0-9_]*)\}\}")
 _env = Environment(undefined=DebugUndefined)
 
 
-def flatten_state(state: State) -> dict[str, str]:
+def flatten_state(state: State) -> dict[str, Any]:
     """Flatten nested state keys into placeholder names."""
-    flat: dict[str, str] = {}
+    flat: dict[str, Any] = {}
     data = state.to_dict()
     _flatten("", data, flat)
+    selected_ids = set(state.get("foundation_services", []) or [])
+    selected_ids.update(state.get("selected_services", []) or [])
+    for service_id in selected_ids:
+        flat[service_enabled_key(service_id)] = True
     return flat
 
 
-def _flatten(prefix: str, node: Any, out: dict[str, str]) -> None:
+def _flatten(prefix: str, node: Any, out: dict[str, Any]) -> None:
     if isinstance(node, dict):
         for key, value in node.items():
             new_prefix = f"{prefix}.{key}" if prefix else key

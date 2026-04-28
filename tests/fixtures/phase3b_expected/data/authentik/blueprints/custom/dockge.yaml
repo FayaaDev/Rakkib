@@ -1,0 +1,22 @@
+version: 1
+metadata:
+  name: Rakkib - Dockge Proxy
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    identifiers:
+      name: provider-dockge
+    attrs:
+      name: provider-dockge
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      external_host: "https://dock.example.com"
+      mode: forward_single
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: dockge
+    attrs:
+      name: Dockge
+      slug: dockge
+      provider: !Find [authentik_providers_proxy.proxyprovider, [name, provider-dockge]]

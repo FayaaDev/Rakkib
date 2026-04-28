@@ -39,6 +39,9 @@ services:
     depends_on: []
     host_service: false
     host_port: true
+    secrets:
+      POSTGRES_PASSWORD:
+        factory: password
     notes: "Single postgres instance serves all services. Port bound to 127.0.0.1 only."
 
   # --- Foundation Bundle (recommended, presented as a pre-checked group) ---
@@ -64,6 +67,30 @@ services:
     host_port: false
     caddy:
       template: nocodb.caddy.tmpl
+    secrets:
+      NOCODB_ADMIN_PASS:
+        factory: password
+      NOCODB_DB_PASS:
+        factory: password
+    conditional_secrets:
+      - when_services: [authentik]
+        keys:
+          NOCODB_OIDC_CLIENT_ID:
+            factory: oidc_client_id
+          NOCODB_OIDC_CLIENT_SECRET:
+            factory: oidc_client_secret
+    postgres:
+      role: nocodb
+      db: nocodb_db
+      password_key: NOCODB_DB_PASS
+      display_name: NocoDB
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/nocodb.yaml.tmpl
+    homepage:
+      category: Infrastructure
+      name: NocoDB
+      description: No-code database UI
+      icon: nocodb.png
     notes: "No-code database UI. Foundation bundle service. Supports OIDC via Authentik when auth is selected."
 
   - id: authentik
@@ -93,6 +120,29 @@ services:
     chown:
       uid: 1000
       gid: 1000
+    secrets:
+      AUTHENTIK_SECRET_KEY:
+        factory: secret_key
+      AUTHENTIK_DB_PASS:
+        factory: password
+      AUTHENTIK_ADMIN_PASS:
+        factory: password
+    postgres:
+      role: authentik
+      password_key: AUTHENTIK_DB_PASS
+      display_name: Authentik
+    hooks:
+      post_render:
+        - authentik_blueprints
+      pre_start:
+        - authentik_postgres_preflight
+      post_start:
+        - authentik_wait_healthy
+    homepage:
+      category: Infrastructure
+      name: Authentik
+      description: SSO / auth proxy
+      icon: authentik.png
     notes: "SSO / auth proxy. Foundation bundle service. Deploys server + worker + redis containers. Applies blueprints for selected downstream services on first start."
 
   - id: homepage
@@ -114,6 +164,11 @@ services:
       public_template: homepage-public.caddy.tmpl
     data_dirs:
       - data/homepage/config
+    hooks:
+      post_render:
+        - homepage_services_yaml
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-homepage.yaml.tmpl
     notes: "Service dashboard. Foundation bundle service. services.yaml generated from selected service list."
 
   - id: uptime-kuma
@@ -133,6 +188,13 @@ services:
     caddy:
       template: uptime-kuma.caddy.tmpl
       public_template: uptime-kuma-public.caddy.tmpl
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-uptime-kuma.yaml.tmpl
+    homepage:
+      category: Infrastructure
+      name: Uptime Kuma
+      description: Uptime monitoring
+      icon: uptime-kuma.png
     notes: "Uptime monitoring. Foundation bundle service."
 
   - id: dockge
@@ -152,6 +214,13 @@ services:
     caddy:
       template: dockge.caddy.tmpl
       public_template: dockge-public.caddy.tmpl
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-dockge.yaml.tmpl
+    homepage:
+      category: Infrastructure
+      name: Dockge
+      description: Compose manager
+      icon: docker.png
     notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
 
   # --- Optional Services (Tier 1) ---
@@ -182,6 +251,27 @@ services:
     chown:
       uid: 1000
       gid: 1000
+    secrets:
+      N8N_DB_PASS:
+        factory: password
+    conditional_secrets:
+      - when: secrets.n8n_mode != migrate
+        keys:
+          N8N_ENCRYPTION_KEY:
+            factory: password
+            length: 32
+    postgres:
+      role: n8n
+      db: n8n_db
+      password_key: N8N_DB_PASS
+      display_name: n8n
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-n8n.yaml.tmpl
+    homepage:
+      category: Automation
+      name: n8n
+      description: Workflow automation
+      icon: n8n.png
     notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
 
   - id: dbhub
@@ -200,6 +290,16 @@ services:
     caddy:
       template: dbhub.caddy.tmpl
       public_template: dbhub-public.caddy.tmpl
+    extra_templates:
+      - src: templates/docker/dbhub/dbhub.toml.tmpl
+        dst: docker/dbhub/dbhub.toml
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-dbhub.yaml.tmpl
+    homepage:
+      category: Tools
+      name: DBHub
+      description: Database browser
+      icon: dbhub.png
     notes: "Database browser. Optional. Uses dbhub.toml config file."
 
   - id: immich
@@ -226,6 +326,17 @@ services:
     data_dirs:
       - data/immich/library
       - data/immich/postgres
+    secrets:
+      IMMICH_DB_PASSWORD:
+        factory: password
+        length: 32
+      IMMICH_VERSION:
+        value: release
+    homepage:
+      category: Media
+      name: Immich
+      description: Photo and video library
+      icon: immich.png
     notes: "Photo and video library. Optional. CPU-only v1 install using Immich's dedicated Postgres and Valkey services."
 
   - id: transfer
@@ -248,6 +359,11 @@ services:
     chown:
       uid: 5000
       gid: 5000
+    homepage:
+      category: File Sharing
+      name: transfer.sh
+      description: Public unauthenticated file sharing
+      icon: transfer-sh.png
     notes: "Self-hosted transfer.sh file sharing. Optional. Public unauthenticated upload endpoint by design; use only when the owner accepts the abuse risk. Stores uploads on the local filesystem."
 
   - id: jellyfin
@@ -265,4 +381,9 @@ services:
     host_port: true
     caddy:
       template: jellyfin.caddy.tmpl
+    homepage:
+      category: Media
+      name: Jellyfin
+      description: Media server
+      icon: jellyfin.png
     notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
