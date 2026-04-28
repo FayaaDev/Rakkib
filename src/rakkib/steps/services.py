@@ -179,17 +179,43 @@ def _render_caddy_route(state: State, svc: dict, repo: Path, data_root: Path) ->
     foundation = set(state.get("foundation_services", []) or [])
     authentik_enabled = "authentik" in foundation
 
-    # Determine template filename
-    tmpl_name: str | None = None
-    auth_switchable = ("homepage", "uptime-kuma", "dockge", "n8n", "dbhub")
-    if svc_id in auth_switchable:
-        tmpl_name = f"{svc_id}.caddy.tmpl" if authentik_enabled else f"{svc_id}-public.caddy.tmpl"
-    else:
-        tmpl_name = f"{svc_id}.caddy.tmpl"
+    caddy = svc.get("caddy") or {}
+    tmpl_name = caddy.get("template")
+    if not authentik_enabled and caddy.get("public_template"):
+        tmpl_name = caddy["public_template"]
+
+    if tmpl_name is None:
+        return
 
     tmpl_path = repo / "templates" / "caddy" / "routes" / tmpl_name
     if tmpl_path.exists():
         render_file(tmpl_path, routes_dir / f"{svc_id}.caddy", state)
+
+
+def _prepare_service_data(state: State, svc: dict, data_root: Path) -> None:
+    for relative_dir in svc.get("data_dirs", []):
+        (data_root / relative_dir).mkdir(parents=True, exist_ok=True)
+
+    chown = svc.get("chown")
+    if not chown or state.get("platform", "linux") != "linux":
+        return
+
+    service_data_root = data_root / "data" / svc["id"]
+    if not service_data_root.exists():
+        return
+
+    subprocess.run(
+        [
+            "sudo",
+            "-n",
+            "chown",
+            "-R",
+            f"{chown['uid']}:{chown['gid']}",
+            str(service_data_root),
+        ],
+        capture_output=True,
+        text=True,
+    )
 
 
 def _reload_caddy(data_root: Path) -> None:
@@ -230,22 +256,6 @@ def _handle_authentik(state: State, repo: Path, data_root: Path) -> None:
     selected = set(state.get("selected_services", []) or [])
 
     blueprints_dir = data_root / "data" / "authentik" / "blueprints" / "custom"
-    blueprints_dir.mkdir(parents=True, exist_ok=True)
-
-    for media_dir in (
-        data_root / "data" / "authentik" / "media",
-        data_root / "data" / "authentik" / "custom-templates",
-    ):
-        media_dir.mkdir(parents=True, exist_ok=True)
-
-    authentik_data = data_root / "data" / "authentik"
-    platform = state.get("platform", "linux")
-    if platform == "linux":
-        subprocess.run(
-            ["sudo", "-n", "chown", "-R", "1000:1000", str(authentik_data)],
-            capture_output=True,
-            text=True,
-        )
 
     blueprint_map = {
         "nocodb": "templates/docker/authentik/blueprints/nocodb.yaml.tmpl",
@@ -266,7 +276,6 @@ def _handle_authentik(state: State, repo: Path, data_root: Path) -> None:
 def _handle_homepage(state: State, repo: Path, data_root: Path) -> None:
     """Create config dir and generate services.yaml for Homepage dynamically."""
     config_dir = data_root / "data" / "homepage" / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
 
     foundation = set(state.get("foundation_services", []) or [])
     selected = set(state.get("selected_services", []) or [])
@@ -305,46 +314,6 @@ def _handle_homepage(state: State, repo: Path, data_root: Path) -> None:
 
     services_yaml = config_dir / "services.yaml"
     services_yaml.write_text("\n".join(lines) + "\n")
-
-
-def _handle_n8n(state: State, repo: Path, data_root: Path) -> None:
-    """Create n8n data directories and fix ownership for the node user (UID 1000)."""
-    for d in (
-        data_root / "data" / "n8n" / "n8n",
-        data_root / "data" / "n8n" / "n8nworkflows",
-    ):
-        d.mkdir(parents=True, exist_ok=True)
-
-    platform = state.get("platform", "linux")
-    if platform == "linux":
-        subprocess.run(
-            ["sudo", "-n", "chown", "-R", "1000:1000", str(data_root / "data" / "n8n")],
-            capture_output=True,
-            text=True,
-        )
-
-
-def _handle_immich(state: State, repo: Path, data_root: Path) -> None:
-    """Create Immich data directories."""
-    for d in (
-        data_root / "data" / "immich" / "library",
-        data_root / "data" / "immich" / "postgres",
-    ):
-        d.mkdir(parents=True, exist_ok=True)
-
-
-def _handle_transfer(state: State, repo: Path, data_root: Path) -> None:
-    """Create transfer data directory and fix ownership for UID 5000."""
-    transfer_dir = data_root / "data" / "transfer"
-    transfer_dir.mkdir(parents=True, exist_ok=True)
-
-    platform = state.get("platform", "linux")
-    if platform == "linux":
-        subprocess.run(
-            ["sudo", "-n", "chown", "-R", "5000:5000", str(transfer_dir)],
-            capture_output=True,
-            text=True,
-        )
 
 
 def _handle_dbhub(state: State, repo: Path, data_root: Path) -> None:
@@ -404,17 +373,15 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     svc_dir = data_root / "docker" / svc_id
     log_path = data_root / "logs" / f"step5-{svc_id}.log"
 
+    _prepare_service_data(state, svc, data_root)
+
     # --- Render templates ------------------------------------------------
 
     # .env.example -> .env
     env_tmpl = repo / "templates" / "docker" / svc_id / ".env.example"
     env_path = svc_dir / ".env"
     if env_tmpl.exists():
-        preserve: list[str] = []
-        if svc_id == "n8n":
-            preserve = ["N8N_ENCRYPTION_KEY"]
-        elif svc_id == "immich":
-            preserve = ["IMMICH_DB_PASSWORD", "IMMICH_VERSION"]
+        preserve = svc.get("env_preserve_keys", [])
         _render_env_example(state, env_tmpl, env_path, preserve)
 
         # NocoDB: uncomment OIDC lines when Authentik is also in foundation bundle
@@ -440,14 +407,8 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     # Special per-service rendering
     if svc_id == "authentik":
         _handle_authentik(state, repo, data_root)
-    elif svc_id == "n8n":
-        _handle_n8n(state, repo, data_root)
     elif svc_id == "homepage":
         _handle_homepage(state, repo, data_root)
-    elif svc_id == "immich":
-        _handle_immich(state, repo, data_root)
-    elif svc_id == "transfer":
-        _handle_transfer(state, repo, data_root)
     elif svc_id == "dbhub":
         _handle_dbhub(state, repo, data_root)
 
@@ -571,11 +532,7 @@ def verify(state: State) -> VerificationResult:
         port = svc.get("default_port")
 
         # Determine expected container name
-        container_name = svc_id
-        if svc_id == "authentik":
-            container_name = "authentik-server"
-        elif svc_id == "immich":
-            container_name = "immich_server"
+        container_name = svc.get("container_name", svc_id)
 
         if not container_running(container_name):
             return VerificationResult.failure(

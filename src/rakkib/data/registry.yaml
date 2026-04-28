@@ -62,6 +62,8 @@ services:
     depends_on: [postgres]
     host_service: false
     host_port: false
+    caddy:
+      template: nocodb.caddy.tmpl
     notes: "No-code database UI. Foundation bundle service. Supports OIDC via Authentik when auth is selected."
 
   - id: authentik
@@ -81,6 +83,16 @@ services:
     depends_on: [postgres]
     host_service: false
     host_port: false
+    container_name: authentik-server
+    caddy:
+      template: authentik.caddy.tmpl
+    data_dirs:
+      - data/authentik/blueprints/custom
+      - data/authentik/media
+      - data/authentik/custom-templates
+    chown:
+      uid: 1000
+      gid: 1000
     notes: "SSO / auth proxy. Foundation bundle service. Deploys server + worker + redis containers. Applies blueprints for selected downstream services on first start."
 
   - id: homepage
@@ -97,6 +109,11 @@ services:
     depends_on: []
     host_service: false
     host_port: false
+    caddy:
+      template: homepage.caddy.tmpl
+      public_template: homepage-public.caddy.tmpl
+    data_dirs:
+      - data/homepage/config
     notes: "Service dashboard. Foundation bundle service. services.yaml generated from selected service list."
 
   - id: uptime-kuma
@@ -113,6 +130,9 @@ services:
     depends_on: []
     host_service: false
     host_port: false
+    caddy:
+      template: uptime-kuma.caddy.tmpl
+      public_template: uptime-kuma-public.caddy.tmpl
     notes: "Uptime monitoring. Foundation bundle service."
 
   - id: dockge
@@ -129,6 +149,9 @@ services:
     depends_on: []
     host_service: false
     host_port: false
+    caddy:
+      template: dockge.caddy.tmpl
+      public_template: dockge-public.caddy.tmpl
     notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
 
   # --- Optional Services (Tier 1) ---
@@ -148,6 +171,17 @@ services:
     depends_on: [postgres]
     host_service: false
     host_port: false
+    caddy:
+      template: n8n.caddy.tmpl
+      public_template: n8n-public.caddy.tmpl
+    env_preserve_keys:
+      - N8N_ENCRYPTION_KEY
+    data_dirs:
+      - data/n8n/n8n
+      - data/n8n/n8nworkflows
+    chown:
+      uid: 1000
+      gid: 1000
     notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
 
   - id: dbhub
@@ -163,6 +197,9 @@ services:
     depends_on: [postgres]
     host_service: false
     host_port: true
+    caddy:
+      template: dbhub.caddy.tmpl
+      public_template: dbhub-public.caddy.tmpl
     notes: "Database browser. Optional. Uses dbhub.toml config file."
 
   - id: immich
@@ -170,6 +207,7 @@ services:
     required: false
     optional: true
     image: ghcr.io/immich-app/immich-server:release
+    container_name: immich_server
     default_port: 2283
     default_subdomain: immich
     subdomain_key: immich
@@ -180,6 +218,14 @@ services:
     depends_on: []
     host_service: false
     host_port: false
+    caddy:
+      template: immich.caddy.tmpl
+    env_preserve_keys:
+      - IMMICH_DB_PASSWORD
+      - IMMICH_VERSION
+    data_dirs:
+      - data/immich/library
+      - data/immich/postgres
     notes: "Photo and video library. Optional. CPU-only v1 install using Immich's dedicated Postgres and Valkey services."
 
   - id: transfer
@@ -195,6 +241,13 @@ services:
     depends_on: []
     host_service: false
     host_port: true
+    caddy:
+      template: transfer.caddy.tmpl
+    data_dirs:
+      - data/transfer
+    chown:
+      uid: 5000
+      gid: 5000
     notes: "Self-hosted transfer.sh file sharing. Optional. Public unauthenticated upload endpoint by design; use only when the owner accepts the abuse risk. Stores uploads on the local filesystem."
 
   - id: jellyfin
@@ -210,4 +263,6 @@ services:
     depends_on: []
     host_service: false
     host_port: true
+    caddy:
+      template: jellyfin.caddy.tmpl
     notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
