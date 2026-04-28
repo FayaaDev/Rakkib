@@ -319,13 +319,18 @@ def remove_single_service(state: State, svc_id: str) -> None:
 
 def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path) -> None:
     """Render templates, create dirs, and start a single service."""
-    if svc.get("host_service"):
-        return
-
     svc_id = svc["id"]
-    svc_dir = data_root / "docker" / svc_id
+    is_host = svc.get("host_service")
     log_path = data_root / "logs" / f"step5-{svc_id}.log"
     registry = _load_registry()
+
+    # --- Caddy route (always, for both host and Docker services) ---------
+    _render_caddy_route(state, svc, repo, data_root)
+
+    if is_host:
+        return
+
+    svc_dir = data_root / "docker" / svc_id
     hooks = svc.get("hooks") or {}
 
     _prepare_service_data(state, svc, data_root)
@@ -353,9 +358,6 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     compose_up(svc_dir, log_path=log_path)
 
     _run_named_hooks(hooks.get("post_start", []), POST_START_HOOKS, state, svc, repo, data_root, log_path, registry)
-
-    # --- Caddy route -----------------------------------------------------
-    _render_caddy_route(state, svc, repo, data_root)
 
 
 def run(state: State) -> None:
@@ -458,11 +460,23 @@ def verify(state: State) -> VerificationResult:
     services = selected_service_defs(state, registry)
 
     for svc in services:
-        if svc.get("host_service"):
-            continue
-
         svc_id = svc["id"]
         port = svc.get("default_port")
+
+        if svc.get("host_service"):
+            if port and svc.get("host_port"):
+                result = subprocess.run(
+                    ["curl", "-sf", f"http://127.0.0.1:{port}/health", "-o", "/dev/null"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode != 0:
+                    return VerificationResult.failure(
+                        "services",
+                        f"Host service {svc_id} health check on port {port} failed",
+                    )
+            continue
 
         # Determine expected container name
         container_name = svc.get("container_name", svc_id)

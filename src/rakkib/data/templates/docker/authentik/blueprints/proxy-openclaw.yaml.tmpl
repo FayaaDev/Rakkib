@@ -1,0 +1,22 @@
+version: 1
+metadata:
+  name: Rakkib - OpenClaw Proxy
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    identifiers:
+      name: provider-openclaw
+    attrs:
+      name: provider-openclaw
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      external_host: "https://{{OPENCLAW_SUBDOMAIN}}.{{DOMAIN}}"
+      mode: forward_single
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: openclaw
+    attrs:
+      name: OpenClaw
+      slug: openclaw
+      provider: !Find [authentik_providers_proxy.proxyprovider, [name, provider-openclaw]]

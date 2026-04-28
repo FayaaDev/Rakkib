@@ -442,3 +442,35 @@ services:
       timeout: 10
       retries: 3
     notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
+
+  - id: openclaw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    host_service: true
+    host_port: true
+    default_port: 18789
+    default_subdomain: claw
+    subdomain_key: openclaw
+    subdomain_placeholder: OPENCLAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    caddy:
+      template: openclaw.caddy.tmpl
+      public_template: openclaw-public.caddy.tmpl
+    authentik:
+      blueprint: templates/docker/authentik/blueprints/proxy-openclaw.yaml.tmpl
+    homepage:
+      category: AI
+      name: OpenClaw
+      description: Personal AI assistant gateway
+      icon: openclaw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /health
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Personal AI assistant gateway. Runs as a systemd user service on the host (not in Docker). Proxy via Caddy to host port 18789."
