@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from rakkib.state import State
-from rakkib.steps import VerificationResult
+from rakkib.steps import STEP_MODULES, VerificationResult
 
 
 # ---------------------------------------------------------------------------
@@ -18,19 +18,20 @@ from rakkib.steps import VerificationResult
 
 
 def _collect_verifications(state: State) -> list[VerificationResult]:
-    """Import and run verify() from all other step modules."""
+    """Import and run verify() from all other step modules.
+
+    Reads from the cache written by cli._run_steps when available to avoid
+    re-running each step's verify() three times per pull.
+    """
+    cache: dict[str, dict] = state.get("_step_verify_cache") or {}
     results: list[VerificationResult] = []
 
-    step_modules = [
-        ("layout", "rakkib.steps.layout"),
-        ("caddy", "rakkib.steps.caddy"),
-        ("cloudflare", "rakkib.steps.cloudflare"),
-        ("postgres", "rakkib.steps.postgres"),
-        ("services", "rakkib.steps.services"),
-        ("cron", "rakkib.steps.cron"),
-    ]
+    for step_name, module_path in STEP_MODULES:
+        if step_name in cache:
+            cached = cache[step_name]
+            results.append(VerificationResult(ok=cached["ok"], step=cached["step"], message=cached["message"]))
+            continue
 
-    for step_name, module_path in step_modules:
         try:
             module = __import__(module_path, fromlist=["verify"])
             verify_fn = getattr(module, "verify", None)
@@ -45,7 +46,6 @@ def _collect_verifications(state: State) -> list[VerificationResult]:
             result = verify_fn(state)
             results.append(result)
         except ImportError:
-            # Step module not yet implemented (e.g. postgres in early waves)
             results.append(
                 VerificationResult.failure(
                     step_name,

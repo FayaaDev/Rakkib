@@ -8,6 +8,11 @@ from typing import Any
 
 from rakkib.state import State
 
+_RX_IN = re.compile(r"^(.+?)\s+in\s+(.+)$")
+_RX_IS_NOT_NULL = re.compile(r"^(.+?)\s+is\s+not\s+null$")
+_RX_EQ = re.compile(r"^(.+?)\s*==\s*(.+)$")
+_RX_NEQ = re.compile(r"^(.+?)\s*!=\s*(.+)$")
+
 
 def eval_when(when: str, state: State) -> bool:
     """Evaluate simple when expressions against current state.
@@ -35,7 +40,7 @@ def eval_when(when: str, state: State) -> bool:
     # Single clause ---------------------------------------------------------
 
     # value in key
-    m = re.match(r"^(.+?)\s+in\s+(.+)$", when)
+    m = _RX_IN.match(when)
     if m:
         value = m.group(1).strip()
         key = m.group(2).strip()
@@ -45,13 +50,13 @@ def eval_when(when: str, state: State) -> bool:
         return False
 
     # key is not null
-    m = re.match(r"^(.+?)\s+is\s+not\s+null$", when)
+    m = _RX_IS_NOT_NULL.match(when)
     if m:
         key = m.group(1).strip()
         return state.get(key) is not None
 
     # key == value
-    m = re.match(r"^(.+?)\s*==\s*(.+)$", when)
+    m = _RX_EQ.match(when)
     if m:
         key = m.group(1).strip()
         expected = m.group(2).strip()
@@ -65,7 +70,7 @@ def eval_when(when: str, state: State) -> bool:
         return str(actual) == expected
 
     # key != value
-    m = re.match(r"^(.+?)\s*!=\s*(.+)$", when)
+    m = _RX_NEQ.match(when)
     if m:
         return not eval_when(f"{m.group(1).strip()} == {m.group(2).strip()}", state)
 

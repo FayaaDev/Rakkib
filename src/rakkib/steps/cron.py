@@ -50,7 +50,7 @@ def _install_cron_entry(
     """Idempotently install or replace a single cron entry by marker."""
     new_lines: list[str] = []
     for line in lines:
-        if marker in line:
+        if line.endswith(marker):
             continue
         new_lines.append(line)
     new_lines.append(f"{schedule} {command}  {marker}")
@@ -148,8 +148,6 @@ def run(state: State) -> None:
 def verify(state: State) -> VerificationResult:
     data_root = Path(state.get("data_root", "/srv"))
     backup_dir = Path(state.get("backup_dir", str(data_root / "backups")))
-    platform = state.get("platform", "linux")
-    selected = set(state.get("selected_services", []) or [])
     admin_user = state.get("admin_user")
     crontab_user = admin_user if _is_root() and admin_user else None
 

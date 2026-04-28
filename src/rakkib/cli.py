@@ -27,16 +27,34 @@ from rakkib.doctor import (
 )
 from rakkib.interview import run_interview
 from rakkib.state import State
-from rakkib.steps import VerificationResult
+from rakkib.steps import STEP_MODULES, VerificationResult
 from rakkib.steps import services as services_step
 from rakkib.steps.cloudflare import _cloudflared_bin
 
 console = Console()
+_RX_SUBDOMAIN = re.compile(r"^[a-z0-9-]+$")
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _render_doctor_table(checks: list, title: str) -> "Table":
+    from rich.table import Table
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Status", style="bold", width=6)
+    table.add_column("Check", style="dim", width=20)
+    table.add_column("Blocking", width=8)
+    table.add_column("Message")
+    for check in checks:
+        status_style = {
+            "ok": "[green]ok[/green]",
+            "warn": "[yellow]warn[/yellow]",
+            "fail": "[red]fail[/red]",
+        }.get(check.status, check.status)
+        table.add_row(status_style, check.name, "yes" if check.blocking else "no", check.message)
+    return table
 
 
 def _resolve_admin_user(state: State, explicit: str | None = None) -> str:
@@ -119,42 +137,45 @@ def _ensure_prereqs() -> bool:
 
 def _run_steps(state: State, repo_dir: Path) -> bool:
     """Execute setup steps in order. Return True if all pass."""
-    steps: list[tuple[str, str]] = [
-        ("1", "rakkib.steps.layout"),
-        ("2", "rakkib.steps.caddy"),
-        ("3", "rakkib.steps.cloudflare"),
-        ("4", "rakkib.steps.postgres"),
-        ("5", "rakkib.steps.services"),
-        ("6", "rakkib.steps.cron"),
-        ("7", "rakkib.steps.verify"),
-    ]
+    all_steps = STEP_MODULES + [("verify", "rakkib.steps.verify")]
+    verify_cache: dict[str, VerificationResult] = {}
 
-    for label, module_path in steps:
-        console.print(f"[bold green]Step {label}[/bold green]")
+    for step_name, module_path in all_steps:
+        console.print(f"[bold green]Step {step_name}[/bold green]")
         try:
             module = __import__(module_path, fromlist=["run", "verify"])
             run_fn = getattr(module, "run", None)
             verify_fn = getattr(module, "verify", None)
 
             if run_fn is None:
-                console.print(f"[yellow]  Step {label} module has no run() — skipping[/yellow]")
+                console.print(f"[yellow]  Step {step_name} module has no run() — skipping[/yellow]")
                 continue
+
+            if step_name == "verify":
+                # Pass cached results so verify.run() can skip re-running each step verify.
+                state.set("_step_verify_cache", {k: {"ok": v.ok, "step": v.step, "message": v.message} for k, v in verify_cache.items()})
 
             run_fn(state)
 
+            if step_name == "verify":
+                # verify.run() already ran _collect_verifications and printed the summary;
+                # calling verify_fn again would triple-run each step's verify().
+                break
+
             if verify_fn is not None:
                 result = verify_fn(state)
+                verify_cache[step_name] = result
                 if not result.ok:
-                    console.print(f"[bold red]  Step {label} verify failed:[/bold red] {result.message}")
+                    console.print(f"[bold red]  Step {step_name} verify failed:[/bold red] {result.message}")
                     if result.log_path:
                         console.print(f"[dim]  Log: {result.log_path}[/dim]")
                     return False
-                console.print(f"[dim]  Step {label} verify passed[/dim]")
+                console.print(f"[dim]  Step {step_name} verify passed[/dim]")
             else:
-                console.print(f"[dim]  Step {label} has no verify() — skipping check[/dim]")
+                console.print(f"[dim]  Step {step_name} has no verify() — skipping check[/dim]")
 
         except Exception as exc:
-            console.print(f"[bold red]  Step {label} failed:[/bold red] {exc}")
+            console.print(f"[bold red]  Step {step_name} failed:[/bold red] {exc}")
             return False
 
     console.print("[bold green]All steps completed successfully.[/bold green]")
@@ -242,24 +263,8 @@ def doctor(ctx: click.Context, json_output: bool, interactive: bool) -> None:
     else:
         if interactive:
             from rich.panel import Panel
-            from rich.table import Table
 
-            table = Table(title="Rakkib Doctor", show_header=True, header_style="bold magenta")
-            table.add_column("Status", style="bold", width=6)
-            table.add_column("Check", style="dim", width=20)
-            table.add_column("Blocking", width=8)
-            table.add_column("Message")
-
-            for check in checks:
-                status_style = {
-                    "ok": "[green]ok[/green]",
-                    "warn": "[yellow]warn[/yellow]",
-                    "fail": "[red]fail[/red]",
-                }.get(check.status, check.status)
-                blocking_text = "yes" if check.blocking else "no"
-                table.add_row(status_style, check.name, blocking_text, check.message)
-
-            console.print(table)
+            console.print(_render_doctor_table(checks, "Rakkib Doctor"))
 
             # Interactive fixes for blocking failures
             for check in checks:
@@ -293,20 +298,7 @@ def doctor(ctx: click.Context, json_output: bool, interactive: bool) -> None:
             # Re-run checks after fixes
             console.print("\n[bold green]Re-running checks...[/bold green]")
             checks = run_checks(state)
-            table = Table(title="Updated Results", show_header=True, header_style="bold magenta")
-            table.add_column("Status", style="bold", width=6)
-            table.add_column("Check", style="dim", width=20)
-            table.add_column("Blocking", width=8)
-            table.add_column("Message")
-            for check in checks:
-                status_style = {
-                    "ok": "[green]ok[/green]",
-                    "warn": "[yellow]warn[/yellow]",
-                    "fail": "[red]fail[/red]",
-                }.get(check.status, check.status)
-                blocking_text = "yes" if check.blocking else "no"
-                table.add_row(status_style, check.name, blocking_text, check.message)
-            console.print(table)
+            console.print(_render_doctor_table(checks, "Updated Results"))
         else:
             for check in checks:
                 click.echo(f"[{check.status}] {check.name}: {check.message}")
@@ -419,7 +411,7 @@ def add(ctx: click.Context, service: str) -> None:
             f"Subdomain for {service}?",
             default=default_subdomain,
         )
-        if not re.match(r"^[a-z0-9-]+$", subdomain):
+        if not _RX_SUBDOMAIN.match(subdomain):
             console.print(
                 f"[bold red]Error:[/bold red] Subdomain must match ^[a-z0-9-]+$"
             )
@@ -611,23 +603,26 @@ def privileged_ensure_layout(
     user = _resolve_admin_user(state, admin_user)
 
     console.print(f"[bold green]Creating Rakkib layout under {data_root}[/bold green]")
-    paths = [
-        Path(data_root),
-        Path(data_root) / "docker",
-        Path(data_root) / "data",
-        Path(data_root) / "apps" / "static",
-        Path(data_root) / "backups",
-        Path(data_root) / "MDs",
-    ]
-    for p in paths:
+    root = Path(data_root)
+    # These dirs are admin-owned by design; recurse into them safely.
+    admin_dirs = [root / "docker", root / "apps" / "static", root / "backups", root / "MDs"]
+    # These dirs must be created but NOT recursed — data/ contains service-managed UIDs.
+    top_only = [root, root / "apps", root / "data"]
+
+    for p in admin_dirs + top_only:
         p.mkdir(parents=True, exist_ok=True)
+
+    for p in top_only:
         shutil.chown(p, user=user, group=None)
-        # Recursively chown for existing contents
-        for root, dirs, files in os.walk(p):
+
+    for p in admin_dirs:
+        shutil.chown(p, user=user, group=None)
+        for dirpath, dirs, files in os.walk(p):
             for d in dirs:
-                shutil.chown(os.path.join(root, d), user=user, group=None)
+                shutil.chown(os.path.join(dirpath, d), user=user, group=None)
             for f in files:
-                shutil.chown(os.path.join(root, f), user=user, group=None)
+                shutil.chown(os.path.join(dirpath, f), user=user, group=None)
+
     console.print(f"[green]Layout created and owned by {user}.[/green]")
 
 

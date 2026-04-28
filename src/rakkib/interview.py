@@ -13,10 +13,11 @@ from rich.console import Console
 
 from rakkib.normalize import apply_normalize, eval_when, resolve_numeric_aliases
 from rakkib.schema import FieldDef, QuestionSchema, load_all_schemas
-from rakkib.state import State
+from rakkib.state import State, subdomain_placeholder_key
 from rakkib.tui import prompt_checkbox, prompt_confirm, prompt_password, prompt_select, prompt_text
 
 console = Console()
+_TEMPLATE_KEY_RE = re.compile(r"\{\{([^{}]+)\}\}")
 
 
 def run_interview(state: State, questions_dir: Path | str = "questions") -> State:
@@ -175,7 +176,7 @@ def _build_subdomain_defaults(items: list[dict[str, Any]], state: State) -> None
         slug = item["slug"]
         default_sub = item.get("default_subdomain", slug)
         state.set(f"subdomains.{slug}", default_sub)
-        state.set(f"{slug.upper().replace('-', '_')}_SUBDOMAIN", default_sub)
+        state.set(subdomain_placeholder_key(slug), default_sub)
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +282,7 @@ def _render_template_dict(value: dict[str, Any], state: State) -> dict[str, Any]
 
 
 def _extract_template_keys(template: str) -> list[str]:
-    return re.findall(r"\{\{([^{}]+)\}\}", template)
+    return _TEMPLATE_KEY_RE.findall(template)
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +459,7 @@ def _handle_repeat(
     for slug in slugs:
         default = defaults.get(slug, slug)
         state.set(f"subdomains.{slug}", default)
-        state.set(f"{slug.upper().replace('-', '_')}_SUBDOMAIN", default)
+        state.set(subdomain_placeholder_key(slug), default)
 
 
 # ---------------------------------------------------------------------------

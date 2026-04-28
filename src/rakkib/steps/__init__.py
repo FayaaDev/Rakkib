@@ -11,6 +11,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+STEP_MODULES: list[tuple[str, str]] = [
+    ("layout",     "rakkib.steps.layout"),
+    ("caddy",      "rakkib.steps.caddy"),
+    ("cloudflare", "rakkib.steps.cloudflare"),
+    ("postgres",   "rakkib.steps.postgres"),
+    ("services",   "rakkib.steps.services"),
+    ("cron",       "rakkib.steps.cron"),
+]
+
 
 @dataclass
 class VerificationResult:

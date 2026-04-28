@@ -5,6 +5,7 @@ Deploy foundation bundle services and selected optional services.
 
 from __future__ import annotations
 
+import functools
 import shutil
 import subprocess
 from pathlib import Path
@@ -39,6 +40,7 @@ def _repo_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "data"
 
 
+@functools.lru_cache(maxsize=1)
 def _load_registry() -> dict:
     with (_repo_dir() / "registry.yaml").open() as fh:
         return yaml.safe_load(fh)

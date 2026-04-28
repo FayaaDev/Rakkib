@@ -12,11 +12,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from jinja2 import DebugUndefined, Template
+from jinja2 import DebugUndefined, Environment
 
 from rakkib.state import State
 
 PLACEHOLDER_RE = re.compile(r"\{\{([A-Z_][A-Z0-9_]*)\}\}")
+_env = Environment(undefined=DebugUndefined)
 
 
 def flatten_state(state: State) -> dict[str, str]:
@@ -46,7 +47,7 @@ def render_string(template_text: str, context: dict[str, str]) -> str:
     are left as-is (e.g. ``{{ MISSING }}`` remains in the output) rather
     than raising an error or being silently removed.
     """
-    return Template(template_text, undefined=DebugUndefined).render(**context)
+    return _env.from_string(template_text).render(**context)
 
 
 def render_text(src_text: str, state: State) -> str:
@@ -72,9 +73,11 @@ def render_tree(src_dir: Path | str, dst_dir: Path | str, state: State) -> None:
     """
     src_path = Path(src_dir)
     dst_path = Path(dst_dir)
+    context = flatten_state(state)
 
     for src_file in src_path.rglob("*.tmpl"):
         rel = src_file.relative_to(src_path)
         dst_file = dst_path / rel.with_suffix("")
         dst_file.parent.mkdir(parents=True, exist_ok=True)
-        render_file(src_file, dst_file, state)
+        rendered = render_string(src_file.read_text(), context)
+        dst_file.write_text(rendered)

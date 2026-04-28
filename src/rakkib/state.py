@@ -163,3 +163,8 @@ def _coerce_compare(actual: Any, expected: str) -> bool:
     if actual is None:
         return expected.lower() == "none"
     return str(actual) == expected
+
+
+def subdomain_placeholder_key(slug: str) -> str:
+    """Return the state key used to store a service's subdomain placeholder."""
+    return f"{slug.upper().replace('-', '_')}_SUBDOMAIN"

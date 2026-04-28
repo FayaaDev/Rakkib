@@ -146,14 +146,13 @@ def run(state: State) -> None:
     env_path = postgres_dir / ".env"
     merged = _merge_env(env_candidate, env_path)
     env_path.write_text(merged)
-    if not env_path.exists():
-        env_path.write_text(merged)
     # Ensure restrictive permissions.
     os.chmod(env_path, 0o600)
 
     # 3. Generate init SQL.
+    sql = _generate_init_sql(state)
     sql_path = init_dir / "init-services.sql"
-    sql_path.write_text(_generate_init_sql(state))
+    sql_path.write_text(sql)
 
     # 4. Render docker-compose.yml.
     render_file(
@@ -178,7 +177,7 @@ def run(state: State) -> None:
     # 7. Apply roles/databases directly so passwords are always in sync.
     #    (The init-scripts directory is only executed by postgres on first boot;
     #    re-runs would leave stale passwords without this direct apply.)
-    _apply_sql(_generate_init_sql(state))
+    _apply_sql(sql)
 
     log_path.write_text("postgres step completed\n")
 
