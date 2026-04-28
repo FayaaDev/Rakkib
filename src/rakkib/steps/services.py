@@ -17,7 +17,7 @@ from rakkib.docker import (
     container_publishes_port,
     container_running,
 )
-from rakkib.hooks.services import POST_RENDER_HOOKS, POST_START_HOOKS, PRE_START_HOOKS
+from rakkib.hooks.services import POST_RENDER_HOOKS, POST_START_HOOKS, PRE_START_HOOKS, sync_shared_artifacts
 from rakkib.normalize import eval_when
 from rakkib.render import render_file
 from rakkib.secrets import FACTORIES
@@ -310,6 +310,7 @@ def run(state: State) -> None:
 
     # --- Reload Caddy after all services -------------------------------------
     _reload_caddy(data_root)
+    sync_shared_artifacts(state, repo, data_root, registry)
 
 
 def run_single_service(state: State, svc_id: str) -> None:
@@ -326,6 +327,7 @@ def run_single_service(state: State, svc_id: str) -> None:
     svc = by_id[svc_id]
     _deploy_single_service(state, svc, repo, data_root)
     _reload_caddy(data_root)
+    sync_shared_artifacts(state, repo, data_root, registry)
 
 
 # ---------------------------------------------------------------------------

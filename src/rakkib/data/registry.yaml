@@ -91,6 +91,14 @@ services:
       name: NocoDB
       description: No-code database UI
       icon: nocodb.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "No-code database UI. Foundation bundle service. Supports OIDC via Authentik when auth is selected."
 
   - id: authentik
@@ -143,6 +151,14 @@ services:
       name: Authentik
       description: SSO / auth proxy
       icon: authentik.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "SSO / auth proxy. Foundation bundle service. Deploys server + worker + redis containers. Applies blueprints for selected downstream services on first start."
 
   - id: homepage
@@ -181,13 +197,20 @@ services:
     default_subdomain: status
     subdomain_key: uptime-kuma
     subdomain_placeholder: UPTIME_KUMA_SUBDOMAIN
-    env_keys: []
+    env_keys:
+      - UPTIME_KUMA_ADMIN_USER
+      - UPTIME_KUMA_ADMIN_PASS
     depends_on: []
     host_service: false
     host_port: false
     caddy:
       template: uptime-kuma.caddy.tmpl
       public_template: uptime-kuma-public.caddy.tmpl
+    secrets:
+      UPTIME_KUMA_ADMIN_USER:
+        value: admin
+      UPTIME_KUMA_ADMIN_PASS:
+        factory: password
     authentik:
       blueprint: templates/docker/authentik/blueprints/proxy-uptime-kuma.yaml.tmpl
     homepage:
@@ -195,6 +218,14 @@ services:
       name: Uptime Kuma
       description: Uptime monitoring
       icon: uptime-kuma.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Uptime monitoring. Foundation bundle service."
 
   - id: dockge
@@ -221,6 +252,14 @@ services:
       name: Dockge
       description: Compose manager
       icon: docker.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
 
   # --- Optional Services (Tier 1) ---
@@ -272,6 +311,14 @@ services:
       name: n8n
       description: Workflow automation
       icon: n8n.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
 
   - id: dbhub
@@ -300,6 +347,14 @@ services:
       name: DBHub
       description: Database browser
       icon: dbhub.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Database browser. Optional. Uses dbhub.toml config file."
 
   - id: immich
@@ -337,6 +392,14 @@ services:
       name: Immich
       description: Photo and video library
       icon: immich.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Photo and video library. Optional. CPU-only v1 install using Immich's dedicated Postgres and Valkey services."
 
   - id: transfer
@@ -364,6 +427,14 @@ services:
       name: transfer.sh
       description: Public unauthenticated file sharing
       icon: transfer-sh.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Self-hosted transfer.sh file sharing. Optional. Public unauthenticated upload endpoint by design; use only when the owner accepts the abuse risk. Stores uploads on the local filesystem."
 
   - id: jellyfin
@@ -386,4 +457,12 @@ services:
       name: Jellyfin
       description: Media server
       icon: jellyfin.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
     notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."

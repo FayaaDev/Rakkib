@@ -42,6 +42,8 @@ NOCODB_DB_PASS: nocodb-db-pass
 AUTHENTIK_SECRET_KEY: authentik-secret-key-1234567890
 AUTHENTIK_DB_PASS: authentik-db-pass
 AUTHENTIK_ADMIN_PASS: authentik-admin-pass
+UPTIME_KUMA_ADMIN_USER: admin
+UPTIME_KUMA_ADMIN_PASS: uptime-kuma-admin-pass
 N8N_DB_PASS: n8n-db-pass
 N8N_ENCRYPTION_KEY: n8n-encryption-key-123456789012
 IMMICH_DB_PASSWORD: immich-db-password-123456789012
@@ -63,6 +65,8 @@ secrets:
     AUTHENTIK_SECRET_KEY: authentik-secret-key-1234567890
     AUTHENTIK_DB_PASS: authentik-db-pass
     AUTHENTIK_ADMIN_PASS: authentik-admin-pass
+    UPTIME_KUMA_ADMIN_USER: admin
+    UPTIME_KUMA_ADMIN_PASS: uptime-kuma-admin-pass
     N8N_DB_PASS: n8n-db-pass
     N8N_ENCRYPTION_KEY: n8n-encryption-key-123456789012
     IMMICH_DB_PASSWORD: immich-db-password-123456789012

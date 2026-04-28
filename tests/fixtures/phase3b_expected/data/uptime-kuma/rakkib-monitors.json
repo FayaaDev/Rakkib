@@ -1,0 +1,90 @@
+{
+  "admin": {
+    "password": "uptime-kuma-admin-pass",
+    "username": "admin"
+  },
+  "managed_prefix": "Managed by Rakkib (service: ",
+  "monitors": [
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "Authentik",
+      "service_id": "authentik",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://auth.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "DBHub",
+      "service_id": "dbhub",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://db.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "Dockge",
+      "service_id": "dockge",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://dock.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "Immich",
+      "service_id": "immich",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://photos.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "Jellyfin",
+      "service_id": "jellyfin",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://media.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "n8n",
+      "service_id": "n8n",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://flow.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "NocoDB",
+      "service_id": "nocodb",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://data.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "transfer.sh",
+      "service_id": "transfer",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://send.example.com/"
+    },
+    {
+      "interval": 60,
+      "maxretries": 3,
+      "name": "Uptime Kuma",
+      "service_id": "uptime-kuma",
+      "timeout": 10,
+      "type": "http",
+      "url": "https://status.example.com/"
+    }
+  ]
+}

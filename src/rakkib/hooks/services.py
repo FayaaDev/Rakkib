@@ -2,27 +2,41 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
-from rakkib.docker import capture_container_logs, health_check
-from rakkib.render import render_file
+from rakkib.docker import capture_container_logs, container_running, health_check
+from rakkib.render import render_file, render_text
 from rakkib.steps import selected_service_defs
 
 
-def homepage_services_yaml(
-    state,
-    svc: dict,
-    repo: Path,
-    data_root: Path,
-    log_path: Path,
-    registry: dict,
-) -> None:
-    """Generate Homepage services.yaml from registry homepage metadata."""
-    del svc, repo, log_path
-    config_dir = data_root / "data" / "homepage" / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
+_KUMA_MANAGED_PREFIX = "Managed by Rakkib (service: "
 
+
+def _write_text_if_changed(path: Path, content: str) -> bool:
+    existing = path.read_text() if path.exists() else None
+    if existing == content:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    return True
+
+
+def _restart_service(data_root: Path, svc_id: str) -> None:
+    svc_dir = data_root / "docker" / svc_id
+    compose_path = svc_dir / "docker-compose.yml"
+    if not compose_path.exists() or not container_running(svc_id):
+        return
+    subprocess.run(
+        ["docker", "compose", "--project-directory", str(svc_dir), "restart"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _homepage_services_content(state, registry: dict) -> str:
     groups: dict[str, list[str]] = {}
     for selected_svc in selected_service_defs(state, registry):
         homepage = selected_svc.get("homepage") or {}
@@ -43,8 +57,113 @@ def homepage_services_yaml(
     for category in sorted(groups):
         lines.append(f"- {category}:")
         lines.extend(groups[category])
+    return "\n".join(lines) + "\n"
 
-    (config_dir / "services.yaml").write_text("\n".join(lines) + "\n")
+
+def _resolve_monitoring_target(state, svc: dict, monitoring: dict) -> dict[str, object]:
+    target = monitoring.get("target", "public_url")
+    monitor_type = monitoring.get("type", "http")
+    path = monitoring.get("path", "/")
+    domain = state.get("domain", "localhost")
+    subdomain = state.get(f"subdomains.{svc['id']}", svc["id"])
+    hostname = f"{subdomain}.{domain}"
+
+    if target == "public_url":
+        if monitor_type == "ping":
+            return {"hostname": hostname}
+        if monitor_type == "tcp":
+            return {"hostname": hostname, "port": int(monitoring.get("port", 443))}
+        normalized_path = path if str(path).startswith("/") else f"/{path}"
+        return {"url": f"https://{hostname}{normalized_path}"}
+
+    if target == "host_port":
+        port = monitoring.get("port") or svc.get("default_port")
+        if port is None:
+            raise ValueError(f"Service {svc['id']} monitoring.host_port requires a port")
+        if monitor_type == "tcp":
+            return {"hostname": "127.0.0.1", "port": int(port)}
+        normalized_path = path if str(path).startswith("/") else f"/{path}"
+        scheme = "https" if monitor_type == "https" else "http"
+        return {"url": f"{scheme}://127.0.0.1:{int(port)}{normalized_path}"}
+
+    if target == "container":
+        port = monitoring.get("port") or svc.get("default_port")
+        container_name = svc.get("container_name", svc["id"])
+        if monitor_type == "ping":
+            return {"hostname": container_name}
+        if monitor_type == "tcp":
+            if port is None:
+                raise ValueError(f"Service {svc['id']} monitoring.container requires a port")
+            return {"hostname": container_name, "port": int(port)}
+        if port is None:
+            raise ValueError(f"Service {svc['id']} monitoring.container requires a port")
+        normalized_path = path if str(path).startswith("/") else f"/{path}"
+        scheme = "https" if monitor_type == "https" else "http"
+        return {"url": f"{scheme}://{container_name}:{int(port)}{normalized_path}"}
+
+    if target == "custom":
+        custom_url = monitoring.get("custom_url")
+        if not custom_url:
+            raise ValueError(f"Service {svc['id']} monitoring.custom requires custom_url")
+        if monitor_type in {"ping", "tcp"}:
+            host = monitoring.get("hostname")
+            port = monitoring.get("port")
+            if monitor_type == "ping" and host:
+                return {"hostname": host}
+            if monitor_type == "tcp" and host and port is not None:
+                return {"hostname": host, "port": int(port)}
+        return {"url": str(custom_url)}
+
+    raise ValueError(f"Unknown monitoring target '{target}' for service {svc['id']}")
+
+
+def _kuma_monitor_spec(state, svc: dict) -> dict[str, object] | None:
+    monitoring = svc.get("monitoring") or {}
+    if not monitoring.get("enabled"):
+        return None
+
+    spec: dict[str, object] = {
+        "service_id": svc["id"],
+        "name": monitoring.get("name") or (svc.get("homepage") or {}).get("name") or svc["id"],
+        "type": monitoring.get("type", "http"),
+        "interval": int(monitoring.get("interval", 60)),
+        "timeout": int(monitoring.get("timeout", 10)),
+        "maxretries": int(monitoring.get("retries", 3)),
+    }
+    spec.update(_resolve_monitoring_target(state, svc, monitoring))
+    return spec
+
+
+def _uptime_kuma_sync_payload(state, registry: dict) -> dict[str, object]:
+    monitors = []
+    for svc in selected_service_defs(state, registry):
+        spec = _kuma_monitor_spec(state, svc)
+        if spec is not None:
+            monitors.append(spec)
+
+    return {
+        "admin": {
+            "username": state.get("UPTIME_KUMA_ADMIN_USER", "admin"),
+            "password": state.get("UPTIME_KUMA_ADMIN_PASS"),
+        },
+        "managed_prefix": _KUMA_MANAGED_PREFIX,
+        "monitors": monitors,
+    }
+
+
+def homepage_services_yaml(
+    state,
+    svc: dict,
+    repo: Path,
+    data_root: Path,
+    log_path: Path,
+    registry: dict,
+) -> None:
+    """Generate Homepage services.yaml from registry homepage metadata."""
+    del svc, repo, log_path
+    config_dir = data_root / "data" / "homepage" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    _write_text_if_changed(config_dir / "services.yaml", _homepage_services_content(state, registry))
 
 
 def authentik_blueprints(
@@ -66,7 +185,45 @@ def authentik_blueprints(
             continue
         tmpl = repo / blueprint
         if tmpl.exists():
-            render_file(tmpl, blueprints_dir / f"{selected_svc['id']}.yaml", state)
+            rendered = render_text(tmpl.read_text(), state)
+            _write_text_if_changed(blueprints_dir / f"{selected_svc['id']}.yaml", rendered)
+
+
+def sync_shared_artifacts(state, repo: Path, data_root: Path, registry: dict) -> None:
+    """Regenerate shared artifacts that derive from the full selected service set."""
+    selected_ids = {svc["id"] for svc in selected_service_defs(state, registry)}
+
+    homepage_changed = False
+    if "homepage" in selected_ids:
+        config_dir = data_root / "data" / "homepage" / "config"
+        homepage_changed = _write_text_if_changed(
+            config_dir / "services.yaml",
+            _homepage_services_content(state, registry),
+        )
+
+    if "authentik" in selected_ids:
+        authentik_blueprints(state, {}, repo, data_root, data_root / "logs" / "step5-authentik.log", registry)
+
+    if homepage_changed:
+        _restart_service(data_root, "homepage")
+
+    if "uptime-kuma" in selected_ids:
+        kuma_data_dir = data_root / "data" / "uptime-kuma"
+        kuma_data_dir.mkdir(parents=True, exist_ok=True)
+
+        payload = json.dumps(_uptime_kuma_sync_payload(state, registry), indent=2, sort_keys=True) + "\n"
+        _write_text_if_changed(kuma_data_dir / "rakkib-monitors.json", payload)
+
+        sync_script = repo / "templates" / "docker" / "uptime-kuma" / "sync-monitors.cjs.tmpl"
+        render_file(sync_script, kuma_data_dir / "sync-monitors.cjs", state)
+
+        if container_running("uptime-kuma"):
+            subprocess.run(
+                ["docker", "exec", "uptime-kuma", "node", "/app/data/sync-monitors.cjs"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
 
 def authentik_postgres_preflight(

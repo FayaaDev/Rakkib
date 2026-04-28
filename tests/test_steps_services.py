@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -39,6 +40,10 @@ def fake_repo(tmp_path: Path):
         tmpl_dir.mkdir(parents=True)
         (tmpl_dir / "docker-compose.yml.tmpl").write_text(f"# {svc} compose\n")
         (tmpl_dir / ".env.example").write_text(f"{svc.upper()}_VAR={{VALUE}}\n")
+
+    uptime_kuma_dir = repo / "templates" / "docker" / "uptime-kuma"
+    uptime_kuma_dir.mkdir(parents=True)
+    (uptime_kuma_dir / "sync-monitors.cjs.tmpl").write_text("console.log('sync');\n")
 
     # Caddy routes
     caddy_dir = repo / "templates" / "caddy" / "routes"
@@ -302,6 +307,89 @@ class TestSpecialHandlers:
         }
         services_step._render_extra_templates(state, svc, fake_repo, tmp_path)
         assert (tmp_path / "docker" / "dbhub" / "dbhub.toml").exists()
+
+    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.container_running", return_value=True)
+    def test_sync_shared_artifacts_writes_kuma_monitors(self, _mock_running, mock_run, fake_repo, tmp_path):
+        state = State(
+            {
+                "foundation_services": ["homepage", "uptime-kuma", "nocodb"],
+                "selected_services": ["dbhub"],
+                "domain": "example.com",
+                "data_root": str(tmp_path),
+                "subdomains": {
+                    "homepage": "home",
+                    "uptime-kuma": "status",
+                    "nocodb": "data",
+                    "dbhub": "sql",
+                },
+                "UPTIME_KUMA_ADMIN_USER": "admin",
+                "UPTIME_KUMA_ADMIN_PASS": "secret-pass",
+            }
+        )
+        registry = services_step._load_registry()
+
+        service_hooks.sync_shared_artifacts(state, fake_repo, tmp_path, registry)
+
+        payload = json.loads((tmp_path / "data" / "uptime-kuma" / "rakkib-monitors.json").read_text())
+        assert payload["admin"]["username"] == "admin"
+        assert payload["admin"]["password"] == "secret-pass"
+        service_ids = {monitor["service_id"] for monitor in payload["monitors"]}
+        assert "nocodb" in service_ids
+        assert "dbhub" in service_ids
+        sync_script = tmp_path / "data" / "uptime-kuma" / "sync-monitors.cjs"
+        assert sync_script.exists()
+        assert any("uptime-kuma" in str(call.args[0]) for call in mock_run.call_args_list)
+
+
+class TestRemoveSingleService:
+    @patch("rakkib.steps.services.compose_down")
+    @patch("rakkib.steps.services.subprocess.run")
+    def test_full_purge_removes_files_and_drops_postgres_resources(self, mock_run, mock_down, tmp_path):
+        data_root = tmp_path / "srv"
+        service_dir = data_root / "docker" / "n8n"
+        service_dir.mkdir(parents=True)
+        (service_dir / "docker-compose.yml").write_text("services: {}\n")
+
+        route_path = data_root / "docker" / "caddy" / "routes"
+        route_path.mkdir(parents=True)
+        (route_path / "n8n.caddy").write_text("route\n")
+
+        data_dir = data_root / "data" / "n8n"
+        data_dir.mkdir(parents=True)
+        (data_dir / "payload.txt").write_text("payload\n")
+
+        blueprint_dir = data_root / "data" / "authentik" / "blueprints" / "custom"
+        blueprint_dir.mkdir(parents=True)
+        (blueprint_dir / "n8n.yaml").write_text("blueprint\n")
+
+        extra_path = data_root / "docker" / "n8n" / "extra.toml"
+        extra_path.write_text("config\n")
+
+        registry = {
+            "services": [
+                {
+                    "id": "n8n",
+                    "state_bucket": "selected_services",
+                    "extra_templates": [{"src": "ignored", "dst": "docker/n8n/extra.toml"}],
+                    "postgres": {"role": "n8n", "db": "n8n_db", "password_key": "N8N_DB_PASS"},
+                }
+            ]
+        }
+        state = State({"data_root": str(data_root)})
+
+        with patch("rakkib.steps.services._load_registry", return_value=registry):
+            services_step.remove_single_service(state, "n8n")
+
+        mock_down.assert_called_once()
+        assert not service_dir.exists()
+        assert not (route_path / "n8n.caddy").exists()
+        assert not data_dir.exists()
+        assert not (blueprint_dir / "n8n.yaml").exists()
+        assert not extra_path.exists()
+        sql = mock_run.call_args.kwargs["input"]
+        assert "DROP DATABASE IF EXISTS n8n_db;" in sql
+        assert "DROP ROLE IF EXISTS n8n;" in sql
 
 
 class TestVerify:

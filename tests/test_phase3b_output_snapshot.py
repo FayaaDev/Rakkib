@@ -44,6 +44,8 @@ def _render_output_tree(tmp_path: Path) -> Path:
         patch("rakkib.steps.services.compose_up"),
         patch("rakkib.steps.services._reload_caddy"),
         patch("rakkib.steps.services.subprocess.run", side_effect=_fake_run),
+        patch("rakkib.hooks.services.subprocess.run", side_effect=_fake_run),
+        patch("rakkib.hooks.services.container_running", return_value=True),
         patch("rakkib.hooks.services.health_check", return_value=True),
     ):
         caddy.run(state)
