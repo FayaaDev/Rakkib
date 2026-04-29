@@ -371,6 +371,54 @@ class TestSpecialHandlers:
             json.dumps(["172.18.0.2"]),
         ]
 
+    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services._run_openclaw")
+    def test_openclaw_install_tolerates_nonzero_onboard_when_artifacts_exist(self, mock_run_openclaw, _mock_subprocess):
+        mock_run_openclaw.side_effect = [
+            MagicMock(returncode=0, stdout="2026.4.26", stderr=""),
+            MagicMock(returncode=1, stdout="Updated ~/.openclaw/openclaw.json", stderr="daemon warning"),
+            MagicMock(returncode=0, stdout="", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
+        ]
+        state = State({"admin_user": "root", "foundation_services": []})
+        config_path = Path("/root/.openclaw/openclaw.json")
+        service_path = Path("/root/.config/systemd/user/openclaw-gateway.service")
+        config_checks = {"count": 0}
+
+        def fake_exists(path_obj: Path) -> bool:
+            if path_obj == config_path:
+                config_checks["count"] += 1
+                return config_checks["count"] > 1
+            return path_obj == service_path
+
+        with patch("rakkib.hooks.services._resolve_openclaw_bin", return_value=Path("/root/.local/bin/openclaw")), patch(
+            "rakkib.hooks.services._service_admin_user", return_value=("root", Path("/root"), 0)
+        ), patch("pathlib.Path.exists", side_effect=fake_exists), patch("rakkib.hooks.services.os.geteuid", return_value=0):
+            service_hooks.openclaw_install(state, {}, Path("."), Path("."), Path("hook.log"), {})
+
+        assert mock_run_openclaw.call_args_list[1].args[2][0] == "onboard"
+        assert mock_run_openclaw.call_args_list[2].args[2] == ["config", "set", "gateway.bind", "lan"]
+
+    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services._run_openclaw")
+    def test_openclaw_install_raises_with_stderr_when_onboard_fails_without_artifacts(self, mock_run_openclaw, _mock_subprocess):
+        mock_run_openclaw.side_effect = [
+            MagicMock(returncode=0, stdout="2026.4.26", stderr=""),
+            MagicMock(returncode=1, stdout="Updated ~/.openclaw/openclaw.json", stderr="failed to reach systemd user bus"),
+        ]
+        state = State({"admin_user": "root", "foundation_services": []})
+
+        with patch("rakkib.hooks.services._resolve_openclaw_bin", return_value=Path("/root/.local/bin/openclaw")), patch(
+            "rakkib.hooks.services._service_admin_user", return_value=("root", Path("/root"), 0)
+        ), patch("pathlib.Path.exists", return_value=False), patch("rakkib.hooks.services.os.geteuid", return_value=0):
+            with pytest.raises(RuntimeError, match="failed to reach systemd user bus"):
+                service_hooks.openclaw_install(state, {}, Path("."), Path("."), Path("hook.log"), {})
+
+    def test_openclaw_paths_follow_admin_home(self):
+        config_path, service_path = service_hooks._openclaw_paths(Path("/root"))
+        assert config_path == Path("/root/.openclaw/openclaw.json")
+        assert service_path == Path("/root/.config/systemd/user/openclaw-gateway.service")
+
     def test_openclaw_allowed_origins_include_public_and_local(self):
         state = State({"domain": "rakkib.app", "subdomains": {"openclaw": "claw"}})
         assert service_hooks._openclaw_allowed_origins(state) == [

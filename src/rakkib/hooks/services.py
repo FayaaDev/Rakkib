@@ -125,6 +125,24 @@ def _run_openclaw(state, openclaw_bin: Path, args: list[str], *, check: bool = T
     return _run_as_service_user(state, [str(openclaw_bin), *args], check=check)
 
 
+def _openclaw_output(result: subprocess.CompletedProcess[str]) -> str:
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    parts = [f"exit code: {result.returncode}"]
+    if stdout:
+        parts.append(f"stdout: {stdout}")
+    if stderr:
+        parts.append(f"stderr: {stderr}")
+    return " | ".join(parts)
+
+
+def _openclaw_paths(home_dir: Path) -> tuple[Path, Path]:
+    return (
+        home_dir / ".openclaw" / "openclaw.json",
+        home_dir / ".config" / "systemd" / "user" / "openclaw-gateway.service",
+    )
+
+
 def _openclaw_gateway_healthcheck(timeout: int = _OPENCLAW_GATEWAY_TIMEOUT) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -558,7 +576,7 @@ def openclaw_install(
         if install.returncode != 0:
             raise RuntimeError(
                 "OpenClaw installation failed. "
-                f"Install output: {install.stdout.strip() or install.stderr.strip()}"
+                f"Command output: {_openclaw_output(install)}"
             )
         openclaw_bin = _resolve_openclaw_bin(state)
         if openclaw_bin is None:
@@ -571,11 +589,11 @@ def openclaw_install(
     if version.returncode != 0:
         raise RuntimeError(
             "OpenClaw CLI was found but `openclaw --version` failed. "
-            f"Command output: {version.stdout.strip() or version.stderr.strip()}"
+            f"Command output: {_openclaw_output(version)}"
         )
 
     _, home_dir, _ = _service_admin_user(state)
-    config_path = home_dir / ".openclaw" / "openclaw.json"
+    config_path, service_path = _openclaw_paths(home_dir)
     if config_path.exists():
         _ensure_openclaw_gateway_bind(state, openclaw_bin)
         _ensure_openclaw_control_ui_allowed_origins(state, openclaw_bin)
@@ -604,10 +622,11 @@ def openclaw_install(
         check=False,
     )
     if onboard.returncode != 0:
-        raise RuntimeError(
-            "OpenClaw onboarding failed. "
-            f"Command output: {onboard.stdout.strip() or onboard.stderr.strip()}"
-        )
+        if not (config_path.exists() and service_path.exists()):
+            raise RuntimeError(
+                "OpenClaw onboarding failed. "
+                f"Command output: {_openclaw_output(onboard)}"
+            )
 
     _ensure_openclaw_gateway_bind(state, openclaw_bin)
     _ensure_openclaw_control_ui_allowed_origins(state, openclaw_bin)
@@ -633,21 +652,21 @@ def openclaw_gateway_restart(
     if install.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway install failed. "
-            f"Command output: {install.stdout.strip() or install.stderr.strip()}"
+            f"Command output: {_openclaw_output(install)}"
         )
 
     restart = _run_openclaw(state, openclaw_bin, ["gateway", "restart"], check=False)
     if restart.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway restart failed. "
-            f"Command output: {restart.stdout.strip() or restart.stderr.strip()}"
+            f"Command output: {_openclaw_output(restart)}"
         )
 
     if not _openclaw_gateway_healthcheck():
         status = _run_openclaw(state, openclaw_bin, ["gateway", "status", "--require-rpc"], check=False)
         raise RuntimeError(
             "OpenClaw gateway did not become healthy on 127.0.0.1:18789/healthz. "
-            f"Status output: {status.stdout.strip() or status.stderr.strip()}"
+            f"Status output: {_openclaw_output(status)}"
         )
 
 
