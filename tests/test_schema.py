@@ -95,6 +95,13 @@ def test_phase_3_service_catalog_and_rules():
     assert "foundation_bundle" in schema.service_catalog
     assert len(schema.service_catalog["foundation_bundle"]) == 5
     assert schema.service_catalog["foundation_bundle"][0]["slug"] == "nocodb"
+    assert [item["slug"] for item in schema.service_catalog["optional_services"]] == [
+        "n8n",
+        "immich",
+        "transfer",
+        "jellyfin",
+        "openclaw",
+    ]
 
     assert len(schema.rules) == 1
     assert schema.rules[0]["if_selected"] == "transfer"
@@ -109,6 +116,7 @@ def test_phase_3_service_catalog_and_rules():
     assert optional.type == "multi_select"
     assert optional.selection_mode == "add_to_empty"
     assert optional.records == ["selected_services"]
+    assert optional.numeric_aliases["10"] == "openclaw"
 
     subdomain = field_map["service_subdomain"]
     assert subdomain.type == "text"

@@ -62,10 +62,15 @@ service_catalog:
       numeric_alias: 9
       subdomain_key: jellyfin
       default_subdomain: jellyfin
+    - slug: openclaw
+      label: OpenClaw
+      numeric_alias: 10
+      subdomain_key: openclaw
+      default_subdomain: claw
   host_addons:
     - slug: vergo_terminal
       label: VErgo Terminal
-      numeric_alias: 12
+      numeric_alias: 11
 fields:
   - id: foundation_services
     type: multi_select
@@ -84,21 +89,22 @@ fields:
     type: multi_select
     selection_mode: add_to_empty
     prompt: "Optional Services: type service slugs to add (e.g. `n8n immich`); numeric aliases like `6 8` are also accepted, or press Enter to skip all:"
-    canonical_values: [n8n, immich, transfer, jellyfin]
+    canonical_values: [n8n, immich, transfer, jellyfin, openclaw]
     numeric_aliases:
       "6": n8n
       "7": immich
       "8": transfer
       "9": jellyfin
+      "10": openclaw
     records:
       - selected_services
   - id: host_addons
     type: multi_select
     selection_mode: add_to_empty
-    prompt: "Optional Host Addons: type addon slugs to add (e.g. `vergo_terminal`); numeric aliases like `10` are also accepted, or press Enter to skip all:"
+    prompt: "Optional Host Addons: type addon slugs to add (e.g. `vergo_terminal`); numeric aliases like `11` are also accepted, or press Enter to skip all:"
     canonical_values: [vergo_terminal]
     numeric_aliases:
-      "10": vergo_terminal
+      "11": vergo_terminal
     records:
       - host_addons
 rules:
@@ -147,9 +153,10 @@ Optional Services:
   [ ] 7  Immich        — photo library          →  immich.<domain>
   [ ] 8  transfer.sh   — public file sharing    →  transfer.<domain>
   [ ] 9  Jellyfin      — media server           →  jellyfin.<domain>
+  [ ] 10 OpenClaw      — AI assistant gateway   →  claw.<domain>
 
 Optional Host Addons:
-  [ ] 9  VErgo Terminal — zsh, prompt, completions, CLI UX
+  [ ] 11 VErgo Terminal — zsh, prompt, completions, CLI UX
 ```
 
 ---
@@ -178,7 +185,7 @@ Ask:
 - Accept the numeric aliases shown in the checklist as a convenience input and normalize them to the same canonical service slugs before recording state.
 - Add the corresponding services to the selection.
 - If the user presses Enter with no input, none are selected.
-- If `9` selects `transfer`, warn before recording it: "transfer.sh will be deployed as a public unauthenticated upload endpoint. Anyone who can reach the URL can upload files. Rakkib does not put transfer.sh behind Authentik or HTTP basic auth because that interferes with its CLI/API behavior." Ask the user to confirm they accept this risk before recording `transfer`; do not record it if they decline.
+- If `8` selects `transfer`, warn before recording it: "transfer.sh will be deployed as a public unauthenticated upload endpoint. Anyone who can reach the URL can upload files. Rakkib does not put transfer.sh behind Authentik or HTTP basic auth because that interferes with its CLI/API behavior." Ask the user to confirm they accept this risk before recording `transfer`; do not record it if they decline.
 
 ---
 
@@ -186,11 +193,11 @@ Ask:
 
 Ask:
 
-> "Optional Host Addons: type addon slugs to add (e.g. `vergo_terminal`); numeric aliases like `9` are also accepted, or press Enter to skip all:"
+> "Optional Host Addons: type addon slugs to add (e.g. `vergo_terminal`); numeric aliases like `11` are also accepted, or press Enter to skip all:"
 
 - Parse the response as a space-separated list of canonical addon slugs.
 - Accept the numeric aliases shown in the checklist as a convenience input and normalize them to the same canonical addon slugs before recording state.
-- `9` selects `vergo_terminal`.
+- `11` selects `vergo_terminal`.
 - If the user presses Enter with no input, no host addons are selected.
 - Warn before recording `vergo_terminal`: "VErgo Terminal modifies the admin user's shell dotfiles (`~/.zshrc`, `~/.zshenv`, `~/.p10k.zsh`, and on Mac `~/.wezterm.lua`). Existing files are backed up before replacement."
 
@@ -219,6 +226,7 @@ subdomains:
   immich: immich                 # only if immich is in selected_services
   transfer: transfer             # only if transfer is in selected_services
   jellyfin: jellyfin             # only if jellyfin is in selected_services
+  openclaw: claw                 # only if openclaw is in selected_services
 ```
 
 Record only subdomains for services that are actually selected (foundation or optional).
@@ -235,3 +243,4 @@ During rendering, flatten these values into service placeholders:
 - `subdomains.immich`     → `{{IMMICH_SUBDOMAIN}}`
 - `subdomains.transfer`   → `{{TRANSFER_SUBDOMAIN}}`
 - `subdomains.jellyfin`   → `{{JELLYFIN_SUBDOMAIN}}`
+- `subdomains.openclaw`   → `{{OPENCLAW_SUBDOMAIN}}`

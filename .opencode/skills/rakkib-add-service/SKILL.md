@@ -17,12 +17,17 @@ Add a new service to Rakkib so it works cleanly with:
 - registry consistency checks
 - rendered output expectations where applicable
 
+The service is not complete until it is available in both runtime flows:
+- the registry-driven deploy/remove pipeline
+- the Phase 3 interview service catalog in `src/rakkib/data/questions/03-services.md`
+
 Prefer the registry-driven architecture. Do not add new hardcoded `if svc_id == ...` branches unless the behavior genuinely cannot be expressed through registry fields, templates, or hooks.
 
 ## Read First
 
 Before editing, inspect these files:
 - `/srv/apps/source/Rakkib/src/rakkib/data/registry.yaml`
+- `/srv/apps/source/Rakkib/src/rakkib/data/questions/03-services.md`
 - `/srv/apps/source/Rakkib/src/rakkib/steps/services.py`
 - `/srv/apps/source/Rakkib/src/rakkib/steps/postgres.py`
 - `/srv/apps/source/Rakkib/src/rakkib/hooks/services.py`
@@ -74,6 +79,7 @@ Keep Rakkib's constraints in mind:
 
 For a normal service, check whether you need:
 - `src/rakkib/data/registry.yaml`
+- `src/rakkib/data/questions/03-services.md`
 - `src/rakkib/data/templates/docker/<id>/docker-compose.yml.tmpl`
 - `src/rakkib/data/templates/docker/<id>/.env.example`
 - `src/rakkib/data/templates/caddy/routes/<id>.caddy.tmpl`
@@ -119,18 +125,30 @@ When adding the registry entry, consider:
 - `env_preserve_keys`
 - `notes`
 
+## Interview Catalog Checklist
+
+When adding a user-selectable service, also update `src/rakkib/data/questions/03-services.md`:
+- add the service to the correct `service_catalog` section
+- add or shift the numeric alias so aliases stay unique
+- update `fields.optional_services` or `fields.foundation_services`
+- update the rendered checklist text under "Present This Menu"
+- update the recorded `subdomains:` example and placeholder mapping list
+- if the service is host-backed, describe it accurately in the menu text instead of implying it is containerized
+
 ## Verification Checklist
 
 Before finishing:
 1. Confirm every referenced template path exists.
 2. Confirm every referenced hook name resolves in the hook registries.
 3. Confirm the service is discoverable from `registry.yaml` by id.
-4. Confirm `rakkib add <id>` has what it needs:
+4. Confirm the service appears in `rakkib init` via `src/rakkib/data/questions/03-services.md`.
+5. Confirm `rakkib add <id>` has what it needs:
    - valid bucket
    - valid dependencies
    - valid subdomain behavior
-5. Update `tests/test_registry_consistency.py` only if the existing generic assertions are no longer sufficient.
-6. If rendered outputs change materially, update fixture or snapshot expectations.
+6. Update tests that assert Phase 3 service catalog contents when you add or reorder services.
+7. Update `tests/test_registry_consistency.py` only if the existing generic assertions are no longer sufficient.
+8. If rendered outputs change materially, update fixture or snapshot expectations.
 
 ## Completion Standard
 
