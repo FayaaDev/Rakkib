@@ -201,8 +201,10 @@ class TestRun:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")
     @patch("rakkib.steps.services._reload_caddy")
+    @patch("rakkib.steps.services._run_named_hooks")
     def test_skips_host_service(
         self,
+        mock_hooks: MagicMock,
         mock_reload: MagicMock,
         mock_compose: MagicMock,
         mock_repo: MagicMock,
@@ -219,6 +221,10 @@ class TestRun:
         })
         services_step.run(state)
         mock_compose.assert_not_called()
+        assert mock_hooks.call_count == 3
+        assert mock_hooks.call_args_list[0].args[0] == []
+        assert mock_hooks.call_args_list[1].args[0] == []
+        assert mock_hooks.call_args_list[2].args[0] == []
 
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")
@@ -436,8 +442,64 @@ class TestRemoveSingleService:
         assert "DROP DATABASE IF EXISTS n8n_db;" in sql
         assert "DROP ROLE IF EXISTS n8n;" in sql
 
+    @patch("rakkib.steps.services._run_named_hooks")
+    def test_host_service_runs_remove_hooks(self, mock_hooks, tmp_path):
+        data_root = tmp_path / "srv"
+        registry = {
+            "services": [
+                {
+                    "id": "openclaw",
+                    "state_bucket": "selected_services",
+                    "host_service": True,
+                    "hooks": {"remove": ["openclaw_gateway_uninstall"]},
+                }
+            ]
+        }
+        state = State({"data_root": str(data_root)})
+
+        with patch("rakkib.steps.services._load_registry", return_value=registry):
+            services_step.remove_single_service(state, "openclaw")
+
+        mock_hooks.assert_called_once()
+        assert mock_hooks.call_args.args[0] == ["openclaw_gateway_uninstall"]
+
 
 class TestVerify:
+    @patch("rakkib.steps.services.subprocess.run")
+    def test_host_service_uses_monitoring_path(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(returncode=0)
+        state = State({
+            "foundation_services": [],
+            "selected_services": ["openclaw"],
+        })
+
+        result = services_step.verify(state)
+
+        assert result.ok is True
+        assert mock_run.call_args.args[0][2] == "http://127.0.0.1:18789/healthz"
+
+
+class TestRestartService:
+    @patch("rakkib.steps.services._run_named_hooks")
+    def test_host_service_uses_restart_hooks(self, mock_hooks):
+        registry = {
+            "services": [
+                {
+                    "id": "openclaw",
+                    "state_bucket": "selected_services",
+                    "host_service": True,
+                    "hooks": {"restart": ["openclaw_gateway_restart"]},
+                }
+            ]
+        }
+        state = State({"data_root": "/srv"})
+
+        with patch("rakkib.steps.services._load_registry", return_value=registry):
+            services_step.restart_service(state, "openclaw")
+
+        mock_hooks.assert_called_once()
+        assert mock_hooks.call_args.args[0] == ["openclaw_gateway_restart"]
+
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.container_running")
     @patch("rakkib.steps.services.container_publishes_port")

@@ -19,7 +19,14 @@ from rakkib.docker import (
     container_publishes_port,
     container_running,
 )
-from rakkib.hooks.services import POST_RENDER_HOOKS, POST_START_HOOKS, PRE_START_HOOKS, sync_shared_artifacts
+from rakkib.hooks.services import (
+    POST_RENDER_HOOKS,
+    POST_START_HOOKS,
+    PRE_START_HOOKS,
+    REMOVE_HOOKS,
+    RESTART_HOOKS,
+    sync_shared_artifacts,
+)
 from rakkib.normalize import eval_when
 from rakkib.render import render_file
 from rakkib.secrets import FACTORIES
@@ -287,6 +294,9 @@ def remove_single_service(state: State, svc_id: str) -> None:
     data_root = Path(state.get("data_root", "/srv"))
     service_dir = data_root / "docker" / svc_id
     log_path = data_root / "logs" / f"step5-{svc_id}.log"
+    hooks = svc.get("hooks") or {}
+
+    _run_named_hooks(hooks.get("remove", []), REMOVE_HOOKS, state, svc, _repo_dir(), data_root, log_path, registry)
 
     if (service_dir / "docker-compose.yml").exists():
         compose_down(service_dir, volumes=True, log_path=log_path)
@@ -323,15 +333,19 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     is_host = svc.get("host_service")
     log_path = data_root / "logs" / f"step5-{svc_id}.log"
     registry = _load_registry()
+    hooks = svc.get("hooks") or {}
 
     # --- Caddy route (always, for both host and Docker services) ---------
     _render_caddy_route(state, svc, repo, data_root)
 
+    _run_named_hooks(hooks.get("post_render", []), POST_RENDER_HOOKS, state, svc, repo, data_root, log_path, registry)
+    _run_named_hooks(hooks.get("pre_start", []), PRE_START_HOOKS, state, svc, repo, data_root, log_path, registry)
+
     if is_host:
+        _run_named_hooks(hooks.get("post_start", []), POST_START_HOOKS, state, svc, repo, data_root, log_path, registry)
         return
 
     svc_dir = data_root / "docker" / svc_id
-    hooks = svc.get("hooks") or {}
 
     _prepare_service_data(state, svc, data_root)
 
@@ -350,9 +364,6 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
         render_file(compose_tmpl, svc_dir / "docker-compose.yml", state)
 
     _render_extra_templates(state, svc, repo, data_root)
-    _run_named_hooks(hooks.get("post_render", []), POST_RENDER_HOOKS, state, svc, repo, data_root, log_path, registry)
-
-    _run_named_hooks(hooks.get("pre_start", []), PRE_START_HOOKS, state, svc, repo, data_root, log_path, registry)
 
     # --- Start service ---------------------------------------------------
     compose_up(svc_dir, log_path=log_path)
@@ -399,8 +410,20 @@ def run_single_service(state: State, svc_id: str) -> None:
 
 
 def restart_service(state: State, svc_id: str) -> None:
-    """Restart a single service by running docker compose restart in its directory."""
+    """Restart a single Docker or host-managed service by id."""
     data_root = Path(state.get("data_root", "/srv"))
+    registry = _load_registry()
+    by_id = {s["id"]: s for s in registry["services"]}
+    if svc_id not in by_id:
+        raise ValueError(f"Service {svc_id} not found in registry")
+
+    svc = by_id[svc_id]
+    if svc.get("host_service"):
+        hooks = svc.get("hooks") or {}
+        log_path = data_root / "logs" / f"step5-{svc_id}.log"
+        _run_named_hooks(hooks.get("restart", []), RESTART_HOOKS, state, svc, _repo_dir(), data_root, log_path, registry)
+        return
+
     svc_dir = data_root / "docker" / svc_id
     if not (svc_dir / "docker-compose.yml").exists():
         raise ValueError(f"No docker-compose.yml found for service '{svc_id}' at {svc_dir}")
@@ -438,6 +461,14 @@ def restart_all(state: State) -> list[str]:
 
     restarted: list[str] = []
     for svc_id in order:
+        svc = next((item for item in registry["services"] if item["id"] == svc_id), None)
+        if svc and svc.get("host_service"):
+            hooks = svc.get("hooks") or {}
+            log_path = data_root / "logs" / f"step5-{svc_id}.log"
+            _run_named_hooks(hooks.get("restart", []), RESTART_HOOKS, state, svc, _repo_dir(), data_root, log_path, registry)
+            restarted.append(svc_id)
+            continue
+
         svc_dir = data_root / "docker" / svc_id
         if not (svc_dir / "docker-compose.yml").exists():
             continue
@@ -465,8 +496,10 @@ def verify(state: State) -> VerificationResult:
 
         if svc.get("host_service"):
             if port and svc.get("host_port"):
+                path = str((svc.get("monitoring") or {}).get("path") or "/healthz")
+                path = path if path.startswith("/") else f"/{path}"
                 result = subprocess.run(
-                    ["curl", "-sf", f"http://127.0.0.1:{port}/health", "-o", "/dev/null"],
+                    ["curl", "-sf", f"http://127.0.0.1:{port}{path}", "-o", "/dev/null"],
                     capture_output=True,
                     text=True,
                     timeout=5,

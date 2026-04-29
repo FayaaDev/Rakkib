@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import pwd
+import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from rakkib.docker import capture_container_logs, container_running, health_check
@@ -12,6 +16,8 @@ from rakkib.steps import selected_service_defs
 
 
 _KUMA_MANAGED_PREFIX = "Managed by Rakkib (service: "
+_OPENCLAW_INSTALL_URL = "https://openclaw.ai/install.sh"
+_OPENCLAW_GATEWAY_TIMEOUT = 180
 
 
 def _write_text_if_changed(path: Path, content: str) -> bool:
@@ -34,6 +40,64 @@ def _restart_service(data_root: Path, svc_id: str) -> None:
         capture_output=True,
         text=True,
     )
+
+
+def _service_admin_user(state) -> tuple[str, Path, int]:
+    admin_user = state.get("admin_user") or os.environ.get("SUDO_USER") or os.environ.get("USER")
+    if not admin_user:
+        raise RuntimeError("OpenClaw setup requires an admin_user in state or a real shell user in the environment.")
+
+    record = pwd.getpwnam(str(admin_user))
+    return str(admin_user), Path(record.pw_dir), int(record.pw_uid)
+
+
+def _run_as_service_user(state, command: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    admin_user, home_dir, user_uid = _service_admin_user(state)
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(home_dir),
+            "USER": admin_user,
+            "LOGNAME": admin_user,
+            "XDG_RUNTIME_DIR": f"/run/user/{user_uid}",
+            "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{user_uid}/bus",
+        }
+    )
+
+    run_cmd = command
+    if os.geteuid() == 0 and os.environ.get("USER") != admin_user:
+        run_cmd = [
+            "sudo",
+            "-u",
+            admin_user,
+            "-H",
+            "env",
+            f"HOME={home_dir}",
+            f"USER={admin_user}",
+            f"LOGNAME={admin_user}",
+            f"XDG_RUNTIME_DIR=/run/user/{user_uid}",
+            f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_uid}/bus",
+        ] + command
+
+    return subprocess.run(run_cmd, capture_output=True, text=True, check=check, env=env)
+
+
+def _run_openclaw(state, args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return _run_as_service_user(state, ["openclaw", *args], check=check)
+
+
+def _openclaw_gateway_healthcheck(timeout: int = _OPENCLAW_GATEWAY_TIMEOUT) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = subprocess.run(
+            ["curl", "-fsS", "http://127.0.0.1:18789/healthz", "-o", "/dev/null"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return True
+        time.sleep(2)
+    return False
 
 
 def _homepage_services_content(state, registry: dict) -> str:
@@ -317,6 +381,128 @@ def authentik_wait_healthy(
         )
 
 
+def openclaw_install(
+    state,
+    svc: dict,
+    repo: Path,
+    data_root: Path,
+    log_path: Path,
+    registry: dict,
+) -> None:
+    """Install OpenClaw and ensure a minimal local gateway is configured."""
+    del svc, repo, data_root, registry
+
+    if shutil.which("curl") is None:
+        raise RuntimeError("OpenClaw setup requires curl. Install curl and re-run `rakkib pull`.")
+
+    if os.geteuid() == 0:
+        admin_user, _, _ = _service_admin_user(state)
+        subprocess.run(["loginctl", "enable-linger", admin_user], capture_output=True, text=True, check=True)
+
+    version = _run_openclaw(state, ["--version"], check=False)
+    if version.returncode != 0:
+        install = _run_as_service_user(state, ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash"], check=False)
+        if install.returncode != 0:
+            raise RuntimeError(
+                "OpenClaw installation failed. "
+                f"Install output: {install.stdout.strip() or install.stderr.strip()}"
+            )
+        version = _run_openclaw(state, ["--version"], check=False)
+        if version.returncode != 0:
+            raise RuntimeError("OpenClaw installation completed but the `openclaw` CLI is still unavailable on PATH.")
+
+    _, home_dir, _ = _service_admin_user(state)
+    config_path = home_dir / ".openclaw" / "openclaw.json"
+    if config_path.exists():
+        return
+
+    onboard = _run_openclaw(
+        state,
+        [
+            "onboard",
+            "--non-interactive",
+            "--mode",
+            "local",
+            "--auth-choice",
+            "skip",
+            "--gateway-port",
+            "18789",
+            "--gateway-bind",
+            "loopback",
+            "--install-daemon",
+            "--skip-bootstrap",
+            "--skip-skills",
+        ],
+        check=False,
+    )
+    if onboard.returncode != 0:
+        raise RuntimeError(
+            "OpenClaw onboarding failed. "
+            f"Command output: {onboard.stdout.strip() or onboard.stderr.strip()}"
+        )
+
+
+def openclaw_gateway_restart(
+    state,
+    svc: dict,
+    repo: Path,
+    data_root: Path,
+    log_path: Path,
+    registry: dict,
+) -> None:
+    """Ensure the OpenClaw gateway daemon is installed, running, and healthy."""
+    del svc, repo, data_root, registry
+
+    install = _run_openclaw(state, ["gateway", "install", "--force"], check=False)
+    if install.returncode != 0:
+        raise RuntimeError(
+            "OpenClaw gateway install failed. "
+            f"Command output: {install.stdout.strip() or install.stderr.strip()}"
+        )
+
+    restart = _run_openclaw(state, ["gateway", "restart"], check=False)
+    if restart.returncode != 0:
+        raise RuntimeError(
+            "OpenClaw gateway restart failed. "
+            f"Command output: {restart.stdout.strip() or restart.stderr.strip()}"
+        )
+
+    if not _openclaw_gateway_healthcheck():
+        status = _run_openclaw(state, ["gateway", "status", "--require-rpc"], check=False)
+        raise RuntimeError(
+            "OpenClaw gateway did not become healthy on 127.0.0.1:18789/healthz. "
+            f"Status output: {status.stdout.strip() or status.stderr.strip()}"
+        )
+
+
+def openclaw_gateway_uninstall(
+    state,
+    svc: dict,
+    repo: Path,
+    data_root: Path,
+    log_path: Path,
+    registry: dict,
+) -> None:
+    """Purge the managed OpenClaw gateway service while preserving user state."""
+    del svc, repo, data_root, log_path, registry
+
+    version = _run_openclaw(state, ["--version"], check=False)
+    if version.returncode != 0:
+        return
+
+    uninstall = _run_openclaw(state, ["gateway", "uninstall"], check=False)
+    if uninstall.returncode == 0:
+        return
+
+    output = f"{uninstall.stdout}\n{uninstall.stderr}".lower()
+    if "not installed" in output or "not found" in output:
+        return
+    raise RuntimeError(
+        "OpenClaw gateway uninstall failed. "
+        f"Command output: {uninstall.stdout.strip() or uninstall.stderr.strip()}"
+    )
+
+
 POST_RENDER_HOOKS = {
     "homepage_services_yaml": homepage_services_yaml,
     "authentik_blueprints": authentik_blueprints,
@@ -324,8 +510,18 @@ POST_RENDER_HOOKS = {
 
 PRE_START_HOOKS = {
     "service_postgres_login_preflight": service_postgres_login_preflight,
+    "openclaw_install": openclaw_install,
 }
 
 POST_START_HOOKS = {
     "authentik_wait_healthy": authentik_wait_healthy,
+    "openclaw_gateway_restart": openclaw_gateway_restart,
+}
+
+RESTART_HOOKS = {
+    "openclaw_gateway_restart": openclaw_gateway_restart,
+}
+
+REMOVE_HOOKS = {
+    "openclaw_gateway_uninstall": openclaw_gateway_uninstall,
 }

@@ -469,8 +469,17 @@ services:
       enabled: true
       type: http
       target: public_url
-      path: /health
+      path: /healthz
       interval: 60
       timeout: 10
       retries: 3
+    hooks:
+      pre_start:
+        - openclaw_install
+      post_start:
+        - openclaw_gateway_restart
+      restart:
+        - openclaw_gateway_restart
+      remove:
+        - openclaw_gateway_uninstall
     notes: "Personal AI assistant gateway. Runs as a systemd user service on the host (not in Docker). Proxy via Caddy to host port 18789."
