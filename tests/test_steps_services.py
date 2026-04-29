@@ -282,6 +282,46 @@ class TestRunSingleService:
 
 
 class TestSpecialHandlers:
+    @patch("rakkib.hooks.services._run_as_service_user")
+    @patch("rakkib.hooks.services.shutil.which", return_value=None)
+    def test_resolve_openclaw_bin_uses_service_user_shell(self, _mock_which, mock_run_as_user):
+        mock_run_as_user.return_value = MagicMock(returncode=0, stdout="/home/admin/.local/bin/openclaw\n")
+
+        resolved = service_hooks._resolve_openclaw_bin(State({"admin_user": "admin"}))
+
+        assert resolved == Path("/home/admin/.local/bin/openclaw")
+
+    @patch("rakkib.hooks.services._run_openclaw")
+    @patch("rakkib.hooks.services._resolve_openclaw_bin")
+    @patch("rakkib.hooks.services._run_as_service_user")
+    @patch("rakkib.hooks.services.shutil.which", return_value="/usr/bin/curl")
+    def test_openclaw_install_installs_without_onboard_then_uses_absolute_path(
+        self,
+        _mock_curl,
+        mock_run_as_user,
+        mock_resolve_bin,
+        mock_run_openclaw,
+    ):
+        mock_resolve_bin.side_effect = [None, Path("/home/admin/.local/bin/openclaw")]
+        mock_run_as_user.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        mock_run_openclaw.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+
+        state = State({"admin_user": "admin"})
+
+        with patch("pathlib.Path.exists", return_value=False), patch("rakkib.hooks.services.os.geteuid", return_value=1000):
+            service_hooks.openclaw_install(state, {}, Path("."), Path("."), Path("hook.log"), {})
+
+        install_cmd = mock_run_as_user.call_args_list[0].args[1]
+        assert install_cmd[-1] == "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"
+        first_call = mock_run_openclaw.call_args_list[0].args
+        second_call = mock_run_openclaw.call_args_list[1].args
+        assert first_call[0] == state
+        assert first_call[1] == Path("/home/admin/.local/bin/openclaw")
+        assert first_call[2] == ["--version"]
+        assert second_call[0] == state
+        assert second_call[1] == Path("/home/admin/.local/bin/openclaw")
+        assert second_call[2][0] == "onboard"
+
     def test_homepage_hook_writes_services_yaml(self, tmp_path):
         state = State(
             {

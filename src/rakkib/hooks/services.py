@@ -82,8 +82,21 @@ def _run_as_service_user(state, command: list[str], *, check: bool = True) -> su
     return subprocess.run(run_cmd, capture_output=True, text=True, check=check, env=env)
 
 
-def _run_openclaw(state, args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return _run_as_service_user(state, ["openclaw", *args], check=check)
+def _resolve_openclaw_bin(state) -> Path | None:
+    direct = shutil.which("openclaw")
+    if direct:
+        return Path(direct).resolve()
+
+    result = _run_as_service_user(state, ["bash", "-lc", "command -v openclaw"], check=False)
+    if result.returncode != 0:
+        return None
+
+    resolved = result.stdout.strip()
+    return Path(resolved).resolve() if resolved else None
+
+
+def _run_openclaw(state, openclaw_bin: Path, args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return _run_as_service_user(state, [str(openclaw_bin), *args], check=check)
 
 
 def _openclaw_gateway_healthcheck(timeout: int = _OPENCLAW_GATEWAY_TIMEOUT) -> bool:
@@ -399,17 +412,31 @@ def openclaw_install(
         admin_user, _, _ = _service_admin_user(state)
         subprocess.run(["loginctl", "enable-linger", admin_user], capture_output=True, text=True, check=True)
 
-    version = _run_openclaw(state, ["--version"], check=False)
-    if version.returncode != 0:
-        install = _run_as_service_user(state, ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash"], check=False)
+    openclaw_bin = _resolve_openclaw_bin(state)
+    if openclaw_bin is None:
+        install = _run_as_service_user(
+            state,
+            ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash -s -- --no-onboard"],
+            check=False,
+        )
         if install.returncode != 0:
             raise RuntimeError(
                 "OpenClaw installation failed. "
                 f"Install output: {install.stdout.strip() or install.stderr.strip()}"
             )
-        version = _run_openclaw(state, ["--version"], check=False)
-        if version.returncode != 0:
-            raise RuntimeError("OpenClaw installation completed but the `openclaw` CLI is still unavailable on PATH.")
+        openclaw_bin = _resolve_openclaw_bin(state)
+        if openclaw_bin is None:
+            raise RuntimeError(
+                "OpenClaw installation completed but the `openclaw` CLI is still unavailable on PATH. "
+                "Check the target user's global npm/bin path, such as `$(npm prefix -g)/bin`, and re-run `rakkib pull`."
+            )
+
+    version = _run_openclaw(state, openclaw_bin, ["--version"], check=False)
+    if version.returncode != 0:
+        raise RuntimeError(
+            "OpenClaw CLI was found but `openclaw --version` failed. "
+            f"Command output: {version.stdout.strip() or version.stderr.strip()}"
+        )
 
     _, home_dir, _ = _service_admin_user(state)
     config_path = home_dir / ".openclaw" / "openclaw.json"
@@ -418,6 +445,7 @@ def openclaw_install(
 
     onboard = _run_openclaw(
         state,
+        openclaw_bin,
         [
             "onboard",
             "--non-interactive",
@@ -453,14 +481,18 @@ def openclaw_gateway_restart(
     """Ensure the OpenClaw gateway daemon is installed, running, and healthy."""
     del svc, repo, data_root, registry
 
-    install = _run_openclaw(state, ["gateway", "install", "--force"], check=False)
+    openclaw_bin = _resolve_openclaw_bin(state)
+    if openclaw_bin is None:
+        raise RuntimeError("OpenClaw gateway restart requested but the `openclaw` CLI is not installed for the admin user.")
+
+    install = _run_openclaw(state, openclaw_bin, ["gateway", "install", "--force"], check=False)
     if install.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway install failed. "
             f"Command output: {install.stdout.strip() or install.stderr.strip()}"
         )
 
-    restart = _run_openclaw(state, ["gateway", "restart"], check=False)
+    restart = _run_openclaw(state, openclaw_bin, ["gateway", "restart"], check=False)
     if restart.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway restart failed. "
@@ -468,7 +500,7 @@ def openclaw_gateway_restart(
         )
 
     if not _openclaw_gateway_healthcheck():
-        status = _run_openclaw(state, ["gateway", "status", "--require-rpc"], check=False)
+        status = _run_openclaw(state, openclaw_bin, ["gateway", "status", "--require-rpc"], check=False)
         raise RuntimeError(
             "OpenClaw gateway did not become healthy on 127.0.0.1:18789/healthz. "
             f"Status output: {status.stdout.strip() or status.stderr.strip()}"
@@ -486,11 +518,11 @@ def openclaw_gateway_uninstall(
     """Purge the managed OpenClaw gateway service while preserving user state."""
     del svc, repo, data_root, log_path, registry
 
-    version = _run_openclaw(state, ["--version"], check=False)
-    if version.returncode != 0:
+    openclaw_bin = _resolve_openclaw_bin(state)
+    if openclaw_bin is None:
         return
 
-    uninstall = _run_openclaw(state, ["gateway", "uninstall"], check=False)
+    uninstall = _run_openclaw(state, openclaw_bin, ["gateway", "uninstall"], check=False)
     if uninstall.returncode == 0:
         return
 
