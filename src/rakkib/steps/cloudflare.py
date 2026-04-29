@@ -23,6 +23,7 @@ from rakkib.steps import VerificationResult
 METRICS_RETRY_ATTEMPTS = 20
 METRICS_RETRY_INTERVAL_SEC = 3
 LOGS_TAIL_LINES = 30
+EDGE_LOGS_TAIL_LINES = 200
 
 
 def _repo_dir() -> Path:
@@ -77,19 +78,6 @@ def _is_existing_tunnel_name_error(stderr: str | None) -> bool:
         "already exists",
         "name is taken",
         "duplicate name",
-    )
-    return any(marker in text for marker in markers)
-
-
-def _is_benign_dns_route_error(stderr: str | None) -> bool:
-    """Return True when a DNS route error means the record already exists."""
-    text = (stderr or "").lower()
-    markers = (
-        "already exists",
-        "already routed",
-        "already configured",
-        "record already exists",
-        "route already exists",
     )
     return any(marker in text for marker in markers)
 
@@ -500,22 +488,34 @@ def run(state: State) -> None:
     dns_routes = [domain, f"*.{domain}", f"{ssh_subdomain}.{domain}"]
     for route in dns_routes:
         route_result = _run(
-            [_cloudflared_bin(), "tunnel", "route", "dns", tunnel_uuid, route],
+            [
+                _cloudflared_bin(),
+                "tunnel",
+                "route",
+                "dns",
+                "--overwrite-dns",
+                tunnel_uuid,
+                route,
+            ],
             env=token_env,
             check=False,
         )
         if route_result.returncode != 0:
-            if _is_benign_dns_route_error(route_result.stderr):
-                continue
-            # Fallback: try with tunnel_name
+            # Fallback: try with tunnel_name when the local build prefers names.
             route_result = _run(
-                [_cloudflared_bin(), "tunnel", "route", "dns", tunnel_name, route],
+                [
+                    _cloudflared_bin(),
+                    "tunnel",
+                    "route",
+                    "dns",
+                    "--overwrite-dns",
+                    tunnel_name,
+                    route,
+                ],
                 env=token_env,
                 check=False,
             )
             if route_result.returncode != 0:
-                if _is_benign_dns_route_error(route_result.stderr):
-                    continue
                 raise RuntimeError(
                     f"DNS route creation failed for {route}: "
                     f"{route_result.stderr.strip() if route_result.stderr else 'unknown error'}"
@@ -661,6 +661,24 @@ def verify(state: State) -> VerificationResult:
                 "— likely crash-looping"
             )
         msg += f"\n--- last {LOGS_TAIL_LINES} lines of docker logs cloudflared ---\n{log_tail}"
+        return VerificationResult.failure("cloudflare", msg)
+
+    edge_logs = subprocess.run(
+        ["docker", "logs", "--tail", str(EDGE_LOGS_TAIL_LINES), "cloudflared"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    edge_log_text = (edge_logs.stdout + edge_logs.stderr).strip()
+    if "Registered tunnel connection" not in edge_log_text:
+        msg = (
+            "cloudflared metrics endpoint responded, but docker logs do not show a "
+            "registered edge connection"
+        )
+        tail = edge_log_text or "(no logs available)"
+        msg += (
+            f"\n--- last {EDGE_LOGS_TAIL_LINES} lines of docker logs cloudflared ---\n{tail}"
+        )
         return VerificationResult.failure("cloudflare", msg)
 
     return VerificationResult.success(
