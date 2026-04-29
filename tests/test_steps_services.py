@@ -171,6 +171,21 @@ class TestRenderEnvExample:
         assert "old_val" in content
 
 
+class TestAuthentikBlueprints:
+    def test_outpost_blueprint_sets_public_authentik_url(self, tmp_path: Path):
+        state = State({
+            "domain": "example.com",
+            "AUTHENTIK_SUBDOMAIN": "auth",
+        })
+        service_hooks._write_outpost_blueprint(state, tmp_path, ["n8n", "dockge"])
+
+        content = (tmp_path / "outpost.yaml").read_text()
+        assert 'authentik_host: "https://auth.example.com/"' in content
+        assert 'authentik_host_browser: "https://auth.example.com/"' in content
+        assert "provider-n8n" in content
+        assert "provider-dockge" in content
+
+
 class TestRun:
     @patch("rakkib.steps.services._repo_dir")
     @patch("rakkib.steps.services.compose_up")

@@ -421,16 +421,21 @@ def authentik_blueprints(
             if "proxy" in blueprint:
                 proxy_provider_ids.append(selected_svc["id"])
 
-    _write_outpost_blueprint(blueprints_dir, proxy_provider_ids)
+    _write_outpost_blueprint(state, blueprints_dir, proxy_provider_ids)
 
 
-def _write_outpost_blueprint(blueprints_dir: Path, provider_ids: list[str]) -> None:
+def _write_outpost_blueprint(state, blueprints_dir: Path, provider_ids: list[str]) -> None:
     """Write (or remove) the outpost blueprint that binds proxy providers to the embedded outpost."""
     outpost_file = blueprints_dir / "outpost.yaml"
     if not provider_ids:
         outpost_file.unlink(missing_ok=True)
         return
 
+    domain = str(state.get("domain") or state.get("DOMAIN") or "localhost").strip()
+    authentik_subdomain = str(
+        state.get("AUTHENTIK_SUBDOMAIN") or state.get("subdomains.authentik") or "auth"
+    ).strip()
+    authentik_url = f"https://{authentik_subdomain}.{domain}/"
     provider_lines = "\n".join(
         f"        - !Find [authentik_providers_proxy.proxyprovider, [name, provider-{pid}]]"
         for pid in provider_ids
@@ -445,6 +450,9 @@ entries:
     identifiers:
       name: "authentik Embedded Outpost"
     attrs:
+      config:
+        authentik_host: "{authentik_url}"
+        authentik_host_browser: "{authentik_url}"
       providers:
 {provider_lines}
 """
