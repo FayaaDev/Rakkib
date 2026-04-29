@@ -9,6 +9,7 @@ entries:
     attrs:
       name: provider-n8n
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       external_host: "https://{{N8N_SUBDOMAIN}}.{{DOMAIN}}"
       mode: forward_single
 

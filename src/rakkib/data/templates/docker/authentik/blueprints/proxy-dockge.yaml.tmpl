@@ -9,6 +9,7 @@ entries:
     attrs:
       name: provider-dockge
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       external_host: "https://{{DOCKGE_SUBDOMAIN}}.{{DOMAIN}}"
       mode: forward_single
 
