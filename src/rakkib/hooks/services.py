@@ -409,6 +409,7 @@ def authentik_blueprints(
     blueprints_dir = data_root / "data" / "authentik" / "blueprints" / "custom"
     blueprints_dir.mkdir(parents=True, exist_ok=True)
 
+    proxy_provider_ids: list[str] = []
     for selected_svc in selected_service_defs(state, registry):
         blueprint = (selected_svc.get("authentik") or {}).get("blueprint")
         if not blueprint:
@@ -417,6 +418,37 @@ def authentik_blueprints(
         if tmpl.exists():
             rendered = render_text(tmpl.read_text(), state)
             _write_text_if_changed(blueprints_dir / f"{selected_svc['id']}.yaml", rendered)
+            if "proxy" in blueprint:
+                proxy_provider_ids.append(selected_svc["id"])
+
+    _write_outpost_blueprint(blueprints_dir, proxy_provider_ids)
+
+
+def _write_outpost_blueprint(blueprints_dir: Path, provider_ids: list[str]) -> None:
+    """Write (or remove) the outpost blueprint that binds proxy providers to the embedded outpost."""
+    outpost_file = blueprints_dir / "outpost.yaml"
+    if not provider_ids:
+        outpost_file.unlink(missing_ok=True)
+        return
+
+    provider_lines = "\n".join(
+        f"        - !Find [authentik_providers_proxy.proxyprovider, [name, provider-{pid}]]"
+        for pid in provider_ids
+    )
+    content = f"""\
+version: 1
+metadata:
+  name: Rakkib - Embedded Outpost Providers
+entries:
+  - model: authentik_outposts.outpost
+    state: present
+    identifiers:
+      name: "authentik Embedded Outpost"
+    attrs:
+      providers:
+{provider_lines}
+"""
+    _write_text_if_changed(outpost_file, content)
 
 
 def _service_postgres_credentials(state, svc: dict) -> tuple[str, str, str]:
