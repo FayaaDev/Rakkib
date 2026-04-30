@@ -545,8 +545,16 @@ def add(ctx: click.Context, service: str | None) -> None:
     postgres_step.run(state)
     if service:
         services_step.run_single_service(state, service)
+    elif added:
+        for svc_id in added:
+            services_step.run_single_service(state, svc_id)
     else:
-        services_step.run(state)
+        # Removals-only or no changes — reload caddy to apply route changes and sync
+        data_root = Path(state.get("data_root", "/srv"))
+        services_step._reload_caddy(data_root)
+        services_step.sync_shared_artifacts(
+            state, services_step._repo_dir(), data_root, services_step._load_registry()
+        )
     state.save(state_path)
 
     console.print("[bold green]Service selection synced successfully.[/bold green]")
