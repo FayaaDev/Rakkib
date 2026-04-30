@@ -96,6 +96,78 @@ Only add the following when required:
 - `env_preserve_keys`
 - `conditional_secrets`
 
+## Template Safety Checks
+
+Before finalizing any new service, validate the rendered templates as a system, not as isolated files.
+
+### 1. Upstream Defaults vs Rakkib Service Names
+
+If the upstream app expects peer services by hostname or container alias, verify that Rakkib uses the same names.
+
+Common examples:
+- app defaults to `database`, but Rakkib service is named `myapp-database`
+- app defaults to `redis`, but Rakkib service is named `myapp-redis`
+- app defaults to `localhost`, but the app actually runs in Docker and must use another service name
+
+If Rakkib renames a dependency service, explicitly set the corresponding env vars in `.env.example`.
+
+Do not assume upstream defaults remain correct after changing compose service names.
+
+### 2. Compose References Must Match `.env.example`
+
+For every `${VAR}` used in `docker-compose.yml.tmpl`, verify one of these is true:
+- it is rendered into `.env.example`
+- it is intentionally provided by Docker Compose or the shell at runtime
+- it has a safe inline default in compose
+
+Do not leave compose depending on values that are only created transiently in Python state unless those values are also written into `.env`.
+
+### 3. Runtime Values Belong In `.env`
+
+If a service needs dynamic values discovered during setup, such as:
+- generated IDs
+- allocated ports
+- UID/GID mappings
+- runtime hostnames
+
+prefer this pattern:
+- render the values into `docker/<id>/.env`
+- reference them from compose using `${VAR}`
+
+This prevents later re-renders from producing broken compose files.
+
+### 4. Preserve Dynamic Env Keys
+
+If step-specific logic writes dynamic values into `.env`, add those keys to `env_preserve_keys` in the registry entry unless overwrite-on-rerender is explicitly desired.
+
+This is especially important for:
+- tunnel UUIDs
+- generated ports
+- runtime user IDs
+- user-supplied tokens or credentials that should survive later deploy flows
+
+### 5. Check The Upstream Example Files
+
+Read the upstream project's official `docker-compose.yml`, `.env`, or install docs before finalizing the Rakkib template.
+
+Specifically compare:
+- service names
+- expected env variable names
+- default hostnames
+- required ports
+- dependency assumptions
+
+If Rakkib diverges from the upstream names, compensate explicitly in `.env.example` or compose.
+
+### 6. Verify Fresh Render Output
+
+Before finishing, inspect the rendered expectation logically and confirm:
+- every inter-container hostname resolves to an actual compose service name
+- every `${VAR}` in compose has a source
+- no required env var is missing from `.env.example`
+- no app dependency still points at an upstream default that Rakkib renamed
+- the service can survive a later `rakkib pull` or `rakkib add` re-render without silently breaking
+
 ## Registry Checklist
 
 When adding the registry entry, consider:
@@ -146,9 +218,12 @@ Before finishing:
    - valid bucket
    - valid dependencies
    - valid subdomain behavior
-6. Update tests that assert Phase 3 service catalog contents when you add or reorder services.
-7. Update `tests/test_registry_consistency.py` only if the existing generic assertions are no longer sufficient.
-8. If rendered outputs change materially, update fixture or snapshot expectations.
+6. Confirm service-to-service hostnames are valid after any Rakkib-specific renaming.
+7. Confirm every compose `${VAR}` is sourced from `.env.example`, shell runtime, or an intentional inline default.
+8. If dynamic values are generated during setup, confirm they are persisted in `.env` when later re-renders depend on them.
+9. Update tests that assert Phase 3 service catalog contents when you add or reorder services.
+10. Update `tests/test_registry_consistency.py` only if the existing generic assertions are no longer sufficient.
+11. If rendered outputs change materially, update fixture or snapshot expectations.
 
 ## Completion Standard
 

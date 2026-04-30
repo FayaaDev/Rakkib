@@ -178,6 +178,13 @@ class TestRun:
         cloudflared_dir = tmp_path / "data" / "cloudflared"
         docker_dir = tmp_path / "docker" / "cloudflared"
         assert (cloudflared_dir / "config.yml").exists()
+        env_path = docker_dir / ".env"
+        assert env_path.exists()
+        env_text = env_path.read_text()
+        assert "TUNNEL_UUID=test-uuid" in env_text
+        assert "CLOUDFLARED_METRICS_PORT=20241" in env_text
+        assert f"ADMIN_UID={state.get('admin_uid')}" in env_text
+        assert f"ADMIN_GID={state.get('admin_gid')}" in env_text
         assert (docker_dir / "docker-compose.yml").exists()
 
     def test_run_api_token_verifies_and_sets_env(self, tmp_path):

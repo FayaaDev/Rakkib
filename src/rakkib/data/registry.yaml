@@ -22,6 +22,11 @@ services:
     subdomain_key: null
     subdomain_placeholder: null
     env_keys: []
+    env_preserve_keys:
+      - TUNNEL_UUID
+      - CLOUDFLARED_METRICS_PORT
+      - ADMIN_UID
+      - ADMIN_GID
     depends_on: []
     host_service: false
     notes: "Cloudflare tunnel. Always installed. Step 3 may pause for guided Cloudflare login approval."

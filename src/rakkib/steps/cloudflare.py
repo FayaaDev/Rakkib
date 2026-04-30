@@ -473,6 +473,12 @@ def run(state: State) -> None:
         state,
     )
     render_file(
+        repo / "templates" / "docker" / "cloudflared" / ".env.example",
+        docker_dir / ".env",
+        state,
+    )
+    (docker_dir / ".env").chmod(0o600)
+    render_file(
         repo / "templates" / "docker" / "cloudflared" / "docker-compose.yml.tmpl",
         docker_dir / "docker-compose.yml",
         state,
