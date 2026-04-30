@@ -10,11 +10,15 @@ import subprocess
 import time
 from pathlib import Path
 
+from rich.console import Console
+
 from rakkib.docker import container_running
 from rakkib.doctor import wait_for_apt_locks
 from rakkib.render import render_file
 from rakkib.steps import selected_service_defs
 
+
+console = Console()
 
 _KUMA_MANAGED_PREFIX = "Managed by Rakkib (service: "
 _OPENCLAW_INSTALL_URL = "https://openclaw.ai/install.sh"
@@ -97,7 +101,10 @@ def _run_as_user(
         run_cmd += command
 
     try:
-        return subprocess.run(run_cmd, capture_output=True, text=True, check=check, env=env, timeout=timeout)
+        return subprocess.run(
+            run_cmd, capture_output=True, text=True, check=check, env=env,
+            timeout=timeout, stdin=subprocess.DEVNULL,
+        )
     except subprocess.TimeoutExpired as exc:
         label = timeout_label or " ".join(command)
         raise RuntimeError(
@@ -187,6 +194,7 @@ def _wait_for_openclaw_package_locks() -> None:
     if shutil.which("apt-get") is None:
         return
 
+    console.print("[dim]  openclaw: waiting for apt/dpkg locks to clear...[/dim]")
     lock_error = wait_for_apt_locks()
     if lock_error:
         raise RuntimeError(f"OpenClaw setup cannot continue while apt/dpkg is locked. {lock_error}")
@@ -518,6 +526,7 @@ def openclaw_install(
 
     openclaw_bin = _resolve_openclaw_bin(state)
     if openclaw_bin is None:
+        console.print("[dim]  openclaw: downloading and installing CLI (this may take a few minutes)...[/dim]")
         install = _run_as_service_user(
             state,
             ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash -s -- --no-onboard --no-prompt"],
@@ -548,10 +557,12 @@ def openclaw_install(
     _, home_dir, _ = _service_admin_user(state)
     config_path, service_path = _openclaw_paths(home_dir)
     if config_path.exists():
+        console.print("[dim]  openclaw: already onboarded, updating config...[/dim]")
         _ensure_openclaw_gateway_bind(state, openclaw_bin)
         _ensure_openclaw_control_ui_allowed_origins(state, openclaw_bin)
         return
 
+    console.print("[dim]  openclaw: running onboarding...[/dim]")
     onboard = _run_openclaw(
         state,
         openclaw_bin,
@@ -599,6 +610,7 @@ def openclaw_gateway_restart(
     if openclaw_bin is None:
         raise RuntimeError("OpenClaw gateway restart requested but the `openclaw` CLI is not installed for the admin user.")
 
+    console.print("[dim]  openclaw: installing gateway service...[/dim]")
     install = _run_openclaw(state, openclaw_bin, ["gateway", "install", "--force"], check=False)
     if install.returncode != 0:
         raise RuntimeError(
@@ -606,6 +618,7 @@ def openclaw_gateway_restart(
             f"Command output: {_openclaw_output(install)}"
         )
 
+    console.print("[dim]  openclaw: restarting gateway...[/dim]")
     restart = _run_openclaw(state, openclaw_bin, ["gateway", "restart"], check=False)
     if restart.returncode != 0:
         raise RuntimeError(
@@ -613,6 +626,7 @@ def openclaw_gateway_restart(
             f"Command output: {_openclaw_output(restart)}"
         )
 
+    console.print(f"[dim]  openclaw: waiting for gateway on 127.0.0.1:18789 (up to {_OPENCLAW_GATEWAY_TIMEOUT}s)...[/dim]")
     if not _openclaw_gateway_healthcheck():
         status = _run_openclaw(state, openclaw_bin, ["gateway", "status", "--require-rpc"], check=False)
         raise RuntimeError(
