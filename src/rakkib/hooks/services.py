@@ -191,6 +191,23 @@ def _openclaw_paths(home_dir: Path) -> tuple[Path, Path]:
     )
 
 
+def _openclaw_dashboard_url(state) -> str | None:
+    """Return the public dashboard URL with token pre-filled, or None if unavailable."""
+    _, home_dir, _ = _service_admin_user(state)
+    config_path, _ = _openclaw_paths(home_dir)
+    try:
+        config = json.loads(config_path.read_text())
+        token = config.get("gateway", {}).get("auth", {}).get("token")
+    except Exception:
+        return None
+    if not token or not isinstance(token, str):
+        return None
+    domain = str(state.get("domain") or "").strip()
+    subdomain = str(state.get("subdomains.openclaw") or state.get("OPENCLAW_SUBDOMAIN") or "claw").strip()
+    base = f"https://{subdomain}.{domain}" if domain and subdomain else "http://127.0.0.1:18789"
+    return f"{base}/?token={token}"
+
+
 def _wait_for_openclaw_package_locks() -> None:
     if shutil.which("apt-get") is None:
         return
@@ -634,6 +651,10 @@ def openclaw_gateway_restart(
             "OpenClaw gateway did not become healthy on 127.0.0.1:18789/healthz. "
             f"Status output: {_openclaw_output(status)}"
         )
+
+    url = _openclaw_dashboard_url(state)
+    if url:
+        console.print(f"[green]  OpenClaw ready:[/green] {url}")
 
 
 def openclaw_gateway_uninstall(
