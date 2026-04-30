@@ -52,7 +52,7 @@ If the user has not already specified them, gather these details:
 - env keys
 - generated secrets
 - whether it uses shared Postgres
-- whether it needs Authentik integration
+- whether it needs a monitoring block (and if so, what URL path to health-check, and whether the target is `public_url`, `host_port`, `container`, or `custom`)
 - whether it needs Homepage metadata
 - whether it needs persistent data dirs and chown
 - whether it needs extra templates
@@ -84,7 +84,6 @@ For a normal service, check whether you need:
 - `src/rakkib/data/templates/docker/<id>/.env.example`
 - `src/rakkib/data/templates/caddy/routes/<id>.caddy.tmpl`
 - `src/rakkib/data/templates/caddy/routes/<id>-public.caddy.tmpl`
-- `src/rakkib/data/templates/docker/authentik/blueprints/<id>.yaml.tmpl`
 
 Only add the following when required:
 - `extra_templates`
@@ -174,6 +173,7 @@ When adding the registry entry, consider:
 - `id`
 - `state_bucket`
 - `required` / `optional`
+- `foundation: true` (explicit boolean required on foundation bundle services — distinct from `state_bucket: foundation_services`)
 - `image`
 - `container_name` if non-default
 - `default_port`
@@ -183,12 +183,12 @@ When adding the registry entry, consider:
 - `subdomain_key`
 - `subdomain_placeholder`
 - `depends_on`
-- `caddy`
+- `caddy` (dict with sub-key `template` for the route file name, and optionally `public_template` for a separate public-access variant)
 - `env_keys`
 - `secrets`
 - `conditional_secrets`
 - `postgres`
-- `authentik`
+- `monitoring` (fields: `enabled`, `type`, `target`, `path`, `port`, `interval`, `timeout`, `retries`, `hostname`, `custom_url`, `name` — drives uptime-kuma sync hooks)
 - `homepage`
 - `data_dirs`
 - `chown`
@@ -211,7 +211,7 @@ When adding a user-selectable service, also update `src/rakkib/data/questions/03
 
 Before finishing:
 1. Confirm every referenced template path exists.
-2. Confirm every referenced hook name resolves in the hook registries.
+2. Confirm every referenced hook name resolves in the hook registries. Note: `test_registry_consistency.py` automatically checks `post_render`, `pre_start`, and `post_start` hook names — `restart` and `remove` hooks are NOT covered by that test and must be verified manually.
 3. Confirm the service is discoverable from `registry.yaml` by id.
 4. Confirm the service appears in `rakkib init` via `src/rakkib/data/questions/03-services.md`.
 5. Confirm `rakkib add <id>` has what it needs:
