@@ -24,6 +24,7 @@ _KUMA_MANAGED_PREFIX = "Managed by Rakkib (service: "
 _OPENCLAW_INSTALL_URL = "https://openclaw.ai/install.sh"
 _OPENCLAW_COMMAND_TIMEOUT = 900
 _OPENCLAW_GATEWAY_TIMEOUT = 180
+_OPENCLAW_PAIRING_TIMEOUT = 180
 _OPENCLAW_GATEWAY_BIND = "lan"
 
 
@@ -206,6 +207,56 @@ def _openclaw_dashboard_url(state) -> str | None:
     subdomain = str(state.get("subdomains.openclaw") or state.get("OPENCLAW_SUBDOMAIN") or "claw").strip()
     base = f"https://{subdomain}.{domain}" if domain and subdomain else "http://127.0.0.1:18789"
     return f"{base}/?token={token}"
+
+
+def _openclaw_wait_for_pairing(state, openclaw_bin: Path) -> None:
+    """If no devices are paired yet, prompt the user and auto-approve the first pairing request."""
+    list_result = _run_openclaw(state, openclaw_bin, ["devices", "list", "--json"], check=False)
+    if list_result.returncode != 0:
+        return
+    try:
+        devices = json.loads(list_result.stdout)
+    except Exception:
+        return
+
+    if devices.get("paired"):
+        return  # Already has paired devices — nothing to do.
+
+    console.print(
+        "  [bold]OpenClaw:[/bold] Open the dashboard and click [bold]Connect[/bold] to pair your device."
+        f" Waiting up to {_OPENCLAW_PAIRING_TIMEOUT}s..."
+    )
+    deadline = time.time() + _OPENCLAW_PAIRING_TIMEOUT
+    while time.time() < deadline:
+        time.sleep(3)
+        list_result = _run_openclaw(state, openclaw_bin, ["devices", "list", "--json"], check=False)
+        if list_result.returncode != 0:
+            continue
+        try:
+            devices = json.loads(list_result.stdout)
+        except Exception:
+            continue
+
+        if devices.get("paired"):
+            # Approved via another path before we could catch the pending state.
+            console.print("[green]  OpenClaw: device paired.[/green]")
+            return
+
+        if devices.get("pending"):
+            approve = _run_openclaw(state, openclaw_bin, ["devices", "approve", "--latest"], check=False)
+            if approve.returncode == 0:
+                console.print("[green]  OpenClaw: device paired and approved automatically.[/green]")
+            else:
+                console.print(
+                    f"[yellow]  OpenClaw: pairing request found but auto-approve failed "
+                    f"({_openclaw_output(approve)}). Run `openclaw devices approve --latest` manually.[/yellow]"
+                )
+            return
+
+    console.print(
+        "[dim]  OpenClaw: no pairing request received within the timeout. "
+        "Open the dashboard and click Connect, then run `openclaw devices approve --latest` on the server.[/dim]"
+    )
 
 
 def _wait_for_openclaw_package_locks() -> None:
@@ -655,6 +706,8 @@ def openclaw_gateway_restart(
     url = _openclaw_dashboard_url(state)
     if url:
         console.print(f"[green]  OpenClaw ready:[/green] {url}")
+
+    _openclaw_wait_for_pairing(state, openclaw_bin)
 
 
 def openclaw_gateway_uninstall(
