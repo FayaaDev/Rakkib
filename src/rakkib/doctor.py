@@ -477,23 +477,43 @@ def check_cloudflare_readiness(state: State) -> list[CheckResult]:
                 )
             )
     elif tunnel_uuid and tunnel_uuid != "null":
-        results.append(
-            CheckResult(
-                "cloudflare_creds",
-                "warn",
-                False,
-                "tunnel UUID is recorded but the standardized credentials path is not recorded yet",
+        if _docker_container_running("cloudflared"):
+            results.append(
+                CheckResult(
+                    "cloudflare_creds",
+                    "ok",
+                    False,
+                    "tunnel is running (credentials path not recorded in state)",
+                )
             )
-        )
+        else:
+            results.append(
+                CheckResult(
+                    "cloudflare_creds",
+                    "warn",
+                    False,
+                    "tunnel UUID is recorded but the standardized credentials path is not recorded yet",
+                )
+            )
     else:
-        results.append(
-            CheckResult(
-                "cloudflare_creds",
-                "warn",
-                False,
-                "tunnel credentials are not recorded yet; Step 3 must create or recover them",
+        if _docker_container_running("cloudflared"):
+            results.append(
+                CheckResult(
+                    "cloudflare_creds",
+                    "ok",
+                    False,
+                    "tunnel is running (credentials path not recorded in state)",
+                )
             )
-        )
+        else:
+            results.append(
+                CheckResult(
+                    "cloudflare_creds",
+                    "warn",
+                    False,
+                    "tunnel credentials are not recorded yet; Step 3 must create or recover them",
+                )
+            )
 
     return results
 
