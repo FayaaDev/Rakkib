@@ -33,7 +33,7 @@ from rakkib.steps import STEP_MODULES, VerificationResult, selected_service_defs
 from rakkib.steps import postgres as postgres_step
 from rakkib.steps import services as services_step
 from rakkib.steps.cloudflare import _cloudflared_bin
-from rakkib.tui import prompt_checkbox, prompt_confirm
+from rakkib.tui import progress_spinner, prompt_checkbox, prompt_confirm
 
 console = Console()
 
@@ -237,8 +237,8 @@ def _summarize_service_diff(added: list[str], removed: list[str]) -> None:
 def _check_docker() -> bool:
     """Verify docker and docker compose are available. Install if missing."""
     if shutil.which("docker") is None:
-        console.print("[dim]Docker not found — installing automatically...[/dim]")
-        msg = attempt_fix_docker()
+        with progress_spinner("Installing Docker..."):
+            msg = attempt_fix_docker()
         console.print(f"[dim]{msg}[/dim]")
         if shutil.which("docker") is None:
             console.print("[bold red]Docker installation did not succeed. Aborting.[/bold red]")
@@ -248,8 +248,8 @@ def _check_docker() -> bool:
     compose_check = subprocess.run(["docker", "compose", "version"],
                                    capture_output=True, text=True)
     if compose_check.returncode != 0:
-        console.print("[dim]docker compose plugin not found — installing automatically...[/dim]")
-        msg = attempt_fix_compose()
+        with progress_spinner("Installing Docker Compose plugin..."):
+            msg = attempt_fix_compose()
         console.print(f"[dim]{msg}[/dim]")
         compose_check = subprocess.run(["docker", "compose", "version"],
                                        capture_output=True, text=True)
@@ -277,8 +277,8 @@ def _ensure_prereqs() -> bool:
             pass
 
     if not cf_ok:
-        console.print("[dim]cloudflared not found — installing automatically...[/dim]")
-        msg = attempt_fix_cloudflared()
+        with progress_spinner("Installing cloudflared..."):
+            msg = attempt_fix_cloudflared()
         console.print(f"[dim]{msg}[/dim]")
         cf_ok = local_cf.is_file()
         if cf_ok:

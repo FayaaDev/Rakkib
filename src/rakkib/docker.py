@@ -10,8 +10,11 @@ import json
 import os
 import subprocess
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
+
+from rakkib.tui import progress_spinner
 
 
 class DockerError(Exception):
@@ -51,7 +54,7 @@ def compose_up(
     if services:
         cmd.extend(services)
 
-    return _run(cmd, log_path=log_path, timeout=timeout)
+    return _run(cmd, log_path=log_path, timeout=timeout, progress_message="Starting Docker services...")
 
 
 def compose_pull(
@@ -64,7 +67,7 @@ def compose_pull(
     cmd = ["docker", "compose", "--project-directory", str(project_dir), "pull"]
     if services:
         cmd.extend(services)
-    return _run(cmd, log_path=log_path, timeout=timeout)
+    return _run(cmd, log_path=log_path, timeout=timeout, progress_message="Pulling Docker images...")
 
 
 def compose_down(
@@ -77,7 +80,7 @@ def compose_down(
     cmd = ["docker", "compose", "--project-directory", str(project_dir), "down"]
     if volumes:
         cmd.append("--volumes")
-    return _run(cmd, log_path=log_path, timeout=timeout)
+    return _run(cmd, log_path=log_path, timeout=timeout, progress_message="Removing Docker services...")
 
 
 def health_check(
@@ -202,6 +205,7 @@ def _run(
     log_path: Path | str | None = None,
     check: bool = True,
     timeout: int | None = None,
+    progress_message: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command, optionally redirecting stdout/stderr to a log file.
 
@@ -210,18 +214,19 @@ def _run(
     effective_timeout = timeout if timeout is not None else _docker_timeout()
     log_file = Path(log_path) if log_path else None
     try:
-        if log_file:
-            log_file.parent.mkdir(parents=True, exist_ok=True)
-            with log_file.open("a") as fh:
-                result = subprocess.run(
-                    cmd,
-                    stdout=fh,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=effective_timeout,
-                )
-        else:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=effective_timeout)
+        with progress_spinner(progress_message) if progress_message else nullcontext():
+            if log_file:
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                with log_file.open("a") as fh:
+                    result = subprocess.run(
+                        cmd,
+                        stdout=fh,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        timeout=effective_timeout,
+                    )
+            else:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=effective_timeout)
     except subprocess.TimeoutExpired as exc:
         log_hint = f" See log: {log_file}" if log_file else ""
         if log_file:

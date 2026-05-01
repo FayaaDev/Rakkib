@@ -7,14 +7,62 @@ minimal changes.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import questionary
 from questionary import Choice
 
 from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 console = Console()
+
+
+@contextmanager
+def progress_spinner(message: str) -> Iterator[None]:
+    """Show a spinner for an unknown-duration operation."""
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task(message, total=None)
+        yield
+
+
+def progress_wait(
+    message: str,
+    timeout: int,
+    poll_fn: Callable[[], bool],
+    *,
+    interval: int = 1,
+) -> bool:
+    """Poll until *poll_fn* succeeds while showing bounded progress."""
+    deadline = time.monotonic() + timeout
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed:.0f}/{task.total:.0f}s"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task(message, total=timeout)
+        while time.monotonic() < deadline:
+            if poll_fn():
+                progress.update(task_id, completed=timeout)
+                return True
+            remaining = max(0, deadline - time.monotonic())
+            elapsed = timeout - remaining
+            progress.update(task_id, completed=min(timeout, elapsed))
+            time.sleep(min(interval, remaining))
+        progress.update(task_id, completed=timeout)
+    return poll_fn()
 
 
 def prompt_text(message: str, default: str | None = None) -> str:

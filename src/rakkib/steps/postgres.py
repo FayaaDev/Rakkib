@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import os
 import subprocess
-import time
 from pathlib import Path
 
 from rakkib.render import render_file, render_text
 from rakkib.secrets import ensure_secrets
 from rakkib.state import State
 from rakkib.steps import VerificationResult, load_service_registry, selected_service_defs
+from rakkib.tui import progress_spinner, progress_wait
 
 
 def _repo_dir() -> Path:
@@ -124,15 +124,16 @@ def _apply_sql(sql: str) -> None:
 
 def _wait_for_healthy(container: str = "postgres", timeout: int = 60) -> None:
     """Poll Docker health status until *container* is healthy."""
-    for _ in range(timeout):
+    def poll() -> bool:
         result = subprocess.run(
             ["docker", "inspect", "--format", "{{.State.Health.Status}}", container],
             capture_output=True,
             text=True,
         )
-        if result.stdout.strip() == "healthy":
-            return
-        time.sleep(1)
+        return result.stdout.strip() == "healthy"
+
+    if progress_wait(f"Waiting for {container} health...", timeout, poll):
+        return
     raise RuntimeError(f"Postgres did not become healthy within {timeout}s")
 
 
@@ -175,12 +176,13 @@ def run(state: State) -> None:
     )
 
     # 5. Start PostgreSQL.
-    up = subprocess.run(
-        ["docker", "compose", "up", "-d"],
-        cwd=str(postgres_dir),
-        capture_output=True,
-        text=True,
-    )
+    with progress_spinner("Starting PostgreSQL..."):
+        up = subprocess.run(
+            ["docker", "compose", "up", "-d"],
+            cwd=str(postgres_dir),
+            capture_output=True,
+            text=True,
+        )
     if up.returncode != 0:
         raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}")
 
@@ -190,7 +192,8 @@ def run(state: State) -> None:
     # 7. Apply roles/databases directly so passwords are always in sync.
     #    (The init-scripts directory is only executed by postgres on first boot;
     #    re-runs would leave stale passwords without this direct apply.)
-    _apply_sql(sql)
+    with progress_spinner("Applying Postgres roles and databases..."):
+        _apply_sql(sql)
 
     log_path.write_text("postgres step completed\n")
 

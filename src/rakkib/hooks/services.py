@@ -7,7 +7,6 @@ import os
 import pwd
 import shutil
 import subprocess
-import time
 from pathlib import Path
 
 from rich.console import Console
@@ -16,6 +15,7 @@ from rakkib.docker import container_running
 from rakkib.doctor import wait_for_apt_locks
 from rakkib.render import render_file
 from rakkib.steps import selected_service_defs
+from rakkib.tui import progress_spinner, progress_wait
 
 
 console = Console()
@@ -226,21 +226,19 @@ def _openclaw_wait_for_pairing(state, openclaw_bin: Path) -> None:
         "  [bold]OpenClaw:[/bold] Open the dashboard and click [bold]Connect[/bold] to pair your device."
         f" Waiting up to {_OPENCLAW_PAIRING_TIMEOUT}s..."
     )
-    deadline = time.time() + _OPENCLAW_PAIRING_TIMEOUT
-    while time.time() < deadline:
-        time.sleep(3)
+    def poll_pairing() -> bool:
         list_result = _run_openclaw(state, openclaw_bin, ["devices", "list", "--json"], check=False)
         if list_result.returncode != 0:
-            continue
+            return False
         try:
             devices = json.loads(list_result.stdout)
         except Exception:
-            continue
+            return False
 
         if devices.get("paired"):
             # Approved via another path before we could catch the pending state.
             console.print("[green]  OpenClaw: device paired.[/green]")
-            return
+            return True
 
         if devices.get("pending"):
             approve = _run_openclaw(state, openclaw_bin, ["devices", "approve", "--latest"], check=False)
@@ -251,7 +249,12 @@ def _openclaw_wait_for_pairing(state, openclaw_bin: Path) -> None:
                     f"[yellow]  OpenClaw: pairing request found but auto-approve failed "
                     f"({_openclaw_output(approve)}). Run `openclaw devices approve --latest` manually.[/yellow]"
                 )
-            return
+            return True
+
+        return False
+
+    if progress_wait("Waiting for OpenClaw device pairing...", _OPENCLAW_PAIRING_TIMEOUT, poll_pairing, interval=3):
+        return
 
     console.print(
         "[dim]  OpenClaw: no pairing request received within the timeout. "
@@ -263,24 +266,22 @@ def _wait_for_openclaw_package_locks() -> None:
     if shutil.which("apt-get") is None:
         return
 
-    console.print("[dim]  openclaw: waiting for apt/dpkg locks to clear...[/dim]")
-    lock_error = wait_for_apt_locks()
+    with progress_spinner("Waiting for apt/dpkg locks to clear..."):
+        lock_error = wait_for_apt_locks()
     if lock_error:
         raise RuntimeError(f"OpenClaw setup cannot continue while apt/dpkg is locked. {lock_error}")
 
 
 def _openclaw_gateway_healthcheck(timeout: int = _OPENCLAW_GATEWAY_TIMEOUT) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    def poll() -> bool:
         result = subprocess.run(
             ["curl", "-fsS", "http://127.0.0.1:18789/healthz", "-o", "/dev/null"],
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0:
-            return True
-        time.sleep(2)
-    return False
+        return result.returncode == 0
+
+    return progress_wait("Waiting for OpenClaw gateway health...", timeout, poll, interval=2)
 
 
 def _migrate_root_openclaw_service(state) -> None:
@@ -595,15 +596,15 @@ def openclaw_install(
 
     openclaw_bin = _resolve_openclaw_bin(state)
     if openclaw_bin is None:
-        console.print("[dim]  openclaw: downloading and installing CLI (this may take a few minutes)...[/dim]")
-        install = _run_as_service_user(
-            state,
-            ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash -s -- --no-onboard --no-prompt"],
-            check=False,
-            timeout=_OPENCLAW_COMMAND_TIMEOUT,
-            extra_env={"OPENCLAW_NO_PROMPT": "1"},
-            timeout_label="OpenClaw installer",
-        )
+        with progress_spinner("Installing OpenClaw CLI..."):
+            install = _run_as_service_user(
+                state,
+                ["bash", "-lc", f"curl -fsSL {_OPENCLAW_INSTALL_URL} | bash -s -- --no-onboard --no-prompt"],
+                check=False,
+                timeout=_OPENCLAW_COMMAND_TIMEOUT,
+                extra_env={"OPENCLAW_NO_PROMPT": "1"},
+                timeout_label="OpenClaw installer",
+            )
         if install.returncode != 0:
             raise RuntimeError(
                 "OpenClaw installation failed. "
@@ -631,28 +632,28 @@ def openclaw_install(
         _ensure_openclaw_control_ui_allowed_origins(state, openclaw_bin)
         return
 
-    console.print("[dim]  openclaw: running onboarding...[/dim]")
-    onboard = _run_openclaw(
-        state,
-        openclaw_bin,
-        [
-            "onboard",
-            "--non-interactive",
-            "--mode",
-            "local",
-            "--auth-choice",
-            "skip",
-            "--gateway-port",
-            "18789",
-            "--gateway-bind",
-            _OPENCLAW_GATEWAY_BIND,
-            "--install-daemon",
-            "--skip-bootstrap",
-            "--skip-skills",
-            "--accept-risk",
-        ],
-        check=False,
-    )
+    with progress_spinner("Running OpenClaw onboarding..."):
+        onboard = _run_openclaw(
+            state,
+            openclaw_bin,
+            [
+                "onboard",
+                "--non-interactive",
+                "--mode",
+                "local",
+                "--auth-choice",
+                "skip",
+                "--gateway-port",
+                "18789",
+                "--gateway-bind",
+                _OPENCLAW_GATEWAY_BIND,
+                "--install-daemon",
+                "--skip-bootstrap",
+                "--skip-skills",
+                "--accept-risk",
+            ],
+            check=False,
+        )
     if onboard.returncode != 0:
         if not (config_path.exists() and service_path.exists()):
             raise RuntimeError(
@@ -679,23 +680,22 @@ def openclaw_gateway_restart(
     if openclaw_bin is None:
         raise RuntimeError("OpenClaw gateway restart requested but the `openclaw` CLI is not installed for the admin user.")
 
-    console.print("[dim]  openclaw: installing gateway service...[/dim]")
-    install = _run_openclaw(state, openclaw_bin, ["gateway", "install", "--force"], check=False)
+    with progress_spinner("Installing OpenClaw gateway service..."):
+        install = _run_openclaw(state, openclaw_bin, ["gateway", "install", "--force"], check=False)
     if install.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway install failed. "
             f"Command output: {_openclaw_output(install)}"
         )
 
-    console.print("[dim]  openclaw: restarting gateway...[/dim]")
-    restart = _run_openclaw(state, openclaw_bin, ["gateway", "restart"], check=False)
+    with progress_spinner("Restarting OpenClaw gateway..."):
+        restart = _run_openclaw(state, openclaw_bin, ["gateway", "restart"], check=False)
     if restart.returncode != 0:
         raise RuntimeError(
             "OpenClaw gateway restart failed. "
             f"Command output: {_openclaw_output(restart)}"
         )
 
-    console.print(f"[dim]  openclaw: waiting for gateway on 127.0.0.1:18789 (up to {_OPENCLAW_GATEWAY_TIMEOUT}s)...[/dim]")
     if not _openclaw_gateway_healthcheck():
         status = _run_openclaw(state, openclaw_bin, ["gateway", "status", "--require-rpc"], check=False)
         raise RuntimeError(
