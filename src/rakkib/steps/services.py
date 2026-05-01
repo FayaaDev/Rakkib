@@ -20,6 +20,7 @@ from rakkib.docker import (
     compose_up,
     container_publishes_port,
     container_running,
+    docker_run,
 )
 from rakkib.hooks.services import (
     POST_RENDER_HOOKS,
@@ -242,25 +243,21 @@ def _reload_caddy(data_root: Path) -> None:
     # writing the result to the host-side file (the bind mount is read-only
     # inside the container, so --overwrite cannot work).
     with progress_spinner("Formatting Caddy configuration..."):
-        fmt_result = subprocess.run(
-            ["docker", "compose", "exec", "caddy", "caddy", "fmt", "/etc/caddy/Caddyfile"],
+        fmt_result = docker_run(
+            ["compose", "exec", "caddy", "caddy", "fmt", "/etc/caddy/Caddyfile"],
             cwd=str(caddy_dir),
-            capture_output=True,
-            text=True,
+            check=False,
         )
     if fmt_result.returncode == 0 and fmt_result.stdout.strip():
         caddyfile.write_text(fmt_result.stdout)
 
     # The Caddyfile has `admin off` so `caddy reload` (which needs the admin
     # API) will always fail. Restart the container instead.
-    with progress_spinner("Restarting Caddy..."):
-        subprocess.run(
-            ["docker", "compose", "restart", "caddy"],
-            cwd=str(caddy_dir),
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    docker_run(
+        ["compose", "restart", "caddy"],
+        cwd=caddy_dir,
+        progress_message="Restarting Caddy...",
+    )
 
 
 def _drop_service_postgres_resources(svc: dict) -> None:
@@ -278,12 +275,9 @@ def _drop_service_postgres_resources(svc: dict) -> None:
         ]
     )
     with progress_spinner(f"Dropping Postgres resources for {svc['id']}..."):
-        subprocess.run(
-            ["docker", "exec", "-i", "postgres", "psql", "-U", "postgres"],
+        docker_run(
+            ["exec", "-i", "postgres", "psql", "-U", "postgres"],
             input=sql,
-            capture_output=True,
-            text=True,
-            check=True,
         )
 
 
@@ -434,11 +428,10 @@ def restart_service(state: State, svc_id: str) -> None:
     svc_dir = data_root / "docker" / svc_id
     if not (svc_dir / "docker-compose.yml").exists():
         raise ValueError(f"No docker-compose.yml found for service '{svc_id}' at {svc_dir}")
-    with progress_spinner(f"Restarting {svc_id}..."):
-        subprocess.run(
-            ["docker", "compose", "--project-directory", str(svc_dir), "restart"],
-            check=True,
-        )
+    docker_run(
+        ["compose", "--project-directory", str(svc_dir), "restart"],
+        progress_message=f"Restarting {svc_id}...",
+    )
 
 
 def restart_all(state: State) -> list[str]:
@@ -480,11 +473,10 @@ def restart_all(state: State) -> list[str]:
         svc_dir = data_root / "docker" / svc_id
         if not (svc_dir / "docker-compose.yml").exists():
             continue
-        with progress_spinner(f"Restarting {svc_id}..."):
-            subprocess.run(
-                ["docker", "compose", "--project-directory", str(svc_dir), "restart"],
-                check=True,
-            )
+        docker_run(
+            ["compose", "--project-directory", str(svc_dir), "restart"],
+            progress_message=f"Restarting {svc_id}...",
+        )
         restarted.append(svc_id)
 
     return restarted

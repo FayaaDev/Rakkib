@@ -27,6 +27,12 @@ class DockerError(Exception):
         self.stderr = stderr
 
 
+DOCKER_PERMISSION_HINT = (
+    "Docker permission denied. If Docker was just installed for this user, run "
+    "`newgrp docker` or open a new shell, verify with `docker info`, then rerun `rakkib pull`."
+)
+
+
 def _docker_timeout() -> int:
     raw = os.environ.get("RAKKIB_DOCKER_TIMEOUT", "3600")
     try:
@@ -55,6 +61,28 @@ def compose_up(
         cmd.extend(services)
 
     return _run(cmd, log_path=log_path, timeout=timeout, progress_message="Starting Docker services...")
+
+
+def docker_run(
+    args: list[str],
+    *,
+    log_path: Path | str | None = None,
+    check: bool = True,
+    timeout: int | None = None,
+    progress_message: str | None = None,
+    cwd: Path | str | None = None,
+    input: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a docker command with consistent diagnostics."""
+    return _run(
+        ["docker", *args],
+        log_path=log_path,
+        check=check,
+        timeout=timeout,
+        progress_message=progress_message,
+        cwd=cwd,
+        input=input,
+    )
 
 
 def compose_pull(
@@ -95,14 +123,8 @@ def health_check(
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            result = _run(
-                [
-                    "docker",
-                    "inspect",
-                    "-f",
-                    "{{.State.Health.Status}}",
-                    container_name,
-                ],
+            result = docker_run(
+                ["inspect", "-f", "{{.State.Health.Status}}", container_name],
                 check=False,
             )
             status = result.stdout.strip()
@@ -124,14 +146,8 @@ def health_check(
 def container_running(container_name: str) -> bool:
     """Return True if the named container is running."""
     try:
-        result = _run(
-            [
-                "docker",
-                "inspect",
-                "-f",
-                "{{.State.Running}}",
-                container_name,
-            ],
+        result = docker_run(
+            ["inspect", "-f", "{{.State.Running}}", container_name],
             check=False,
         )
         return result.stdout.strip().lower() == "true"
@@ -142,14 +158,8 @@ def container_running(container_name: str) -> bool:
 def container_publishes_port(container_name: str, port: int) -> bool:
     """Return True if the container publishes the given host port."""
     try:
-        result = _run(
-            [
-                "docker",
-                "inspect",
-                "-f",
-                "{{json .NetworkSettings.Ports}}",
-                container_name,
-            ],
+        result = docker_run(
+            ["inspect", "-f", "{{json .NetworkSettings.Ports}}", container_name],
             check=False,
         )
         ports: dict[str, Any] = json.loads(result.stdout or "{}")
@@ -168,7 +178,7 @@ def container_publishes_port(container_name: str, port: int) -> bool:
 def network_exists(network_name: str) -> bool:
     """Return True if the docker network exists."""
     try:
-        _run(["docker", "network", "inspect", network_name])
+        docker_run(["network", "inspect", network_name])
         return True
     except DockerError:
         return False
@@ -179,11 +189,7 @@ def capture_container_logs(container_name: str, log_path: Path | str, tail: int 
     log_file = Path(log_path)
     log_file.parent.mkdir(parents=True, exist_ok=True)
     try:
-        result = subprocess.run(
-            ["docker", "logs", "--tail", str(tail), container_name],
-            capture_output=True,
-            text=True,
-        )
+        result = docker_run(["logs", "--tail", str(tail), container_name], check=False)
         with log_file.open("a") as fh:
             fh.write(f"\n--- logs: {container_name} (last {tail} lines) ---\n")
             fh.write(result.stdout)
@@ -197,7 +203,26 @@ def create_network(network_name: str, driver: str = "bridge") -> None:
     """Create a docker network if it does not already exist."""
     if network_exists(network_name):
         return
-    _run(["docker", "network", "create", "--driver", driver, network_name])
+    docker_run(["network", "create", "--driver", driver, network_name])
+
+
+def _is_docker_permission_error(text: str) -> bool:
+    lower = text.lower()
+    return (
+        "permission denied" in lower
+        and (
+            "docker.sock" in lower
+            or "docker daemon socket" in lower
+            or "/var/run/docker" in lower
+        )
+    )
+
+
+def _error_message(cmd: list[str], returncode: int, stderr: str, log_hint: str) -> str:
+    message = f"Command failed with exit code {returncode}: {' '.join(cmd)}.{log_hint}"
+    if cmd and cmd[0] == "docker" and _is_docker_permission_error(stderr):
+        message = f"{message} {DOCKER_PERMISSION_HINT}"
+    return message
 
 
 def _run(
@@ -206,6 +231,8 @@ def _run(
     check: bool = True,
     timeout: int | None = None,
     progress_message: str | None = None,
+    cwd: Path | str | None = None,
+    input: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command, optionally redirecting stdout/stderr to a log file.
 
@@ -224,9 +251,18 @@ def _run(
                         stderr=subprocess.STDOUT,
                         text=True,
                         timeout=effective_timeout,
+                        cwd=str(cwd) if cwd is not None else None,
+                        input=input,
                     )
             else:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=effective_timeout)
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=effective_timeout,
+                    cwd=str(cwd) if cwd is not None else None,
+                    input=input,
+                )
     except subprocess.TimeoutExpired as exc:
         log_hint = f" See log: {log_file}" if log_file else ""
         if log_file:
@@ -241,10 +277,16 @@ def _run(
 
     if check and result.returncode != 0:
         log_hint = f" See log: {log_file}" if log_file else ""
+        stderr = result.stderr or ""
+        if not stderr and log_file and log_file.exists():
+            try:
+                stderr = log_file.read_text()
+            except OSError:
+                stderr = ""
         raise DockerError(
-            message=f"Command failed with exit code {result.returncode}: {' '.join(cmd)}.{log_hint}",
+            message=_error_message(cmd, result.returncode, stderr, log_hint),
             cmd=cmd,
             returncode=result.returncode,
-            stderr=result.stderr,
+            stderr=stderr,
         )
     return result

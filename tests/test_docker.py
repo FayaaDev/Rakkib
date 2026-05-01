@@ -16,6 +16,7 @@ from rakkib.docker import (
     container_publishes_port,
     container_running,
     create_network,
+    docker_run,
     health_check,
     network_exists,
 )
@@ -99,6 +100,14 @@ class TestComposeDown:
         compose_down("/tmp/proj", log_path="/tmp/log.txt")
         _, kwargs = mock_run.call_args
         assert kwargs.get("log_path") == "/tmp/log.txt"
+
+
+class TestDockerRun:
+    @patch("rakkib.docker._run")
+    def test_prefixes_docker_command(self, mock_run: MagicMock):
+        docker_run(["info"])
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[0] == ["docker", "info"]
 
 
 class TestHealthCheck:
@@ -285,6 +294,20 @@ class TestRun:
             _run(["false"])
         assert exc_info.value.stderr == "err"
         assert exc_info.value.returncode == 1
+
+    @patch("rakkib.docker.subprocess.run")
+    def test_docker_permission_failure_has_actionable_hint(self, mock_subprocess: MagicMock):
+        mock_subprocess.return_value = MagicMock(
+            returncode=1,
+            stderr="permission denied while trying to connect to /var/run/docker.sock",
+        )
+        from rakkib.docker import _run
+
+        with pytest.raises(DockerError) as exc_info:
+            _run(["docker", "network", "create", "caddy_net"])
+
+        assert "newgrp docker" in str(exc_info.value)
+        assert "docker info" in str(exc_info.value)
 
     @patch("rakkib.docker.subprocess.run")
     def test_check_false_does_not_raise(self, mock_subprocess: MagicMock):

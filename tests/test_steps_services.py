@@ -621,7 +621,7 @@ class TestSpecialHandlers:
         services_step._render_extra_templates(state, svc, fake_repo, tmp_path)
         assert (tmp_path / "docker" / "n8n" / "n8n.env").exists()
 
-    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.docker_run")
     @patch("rakkib.hooks.services.container_running", return_value=True)
     def test_sync_shared_artifacts_writes_kuma_monitors(self, _mock_running, mock_run, fake_repo, tmp_path):
         state = State(
@@ -654,7 +654,7 @@ class TestSpecialHandlers:
         assert sync_script.exists()
         assert any("uptime-kuma" in str(call.args[0]) for call in mock_run.call_args_list)
 
-    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.docker_run")
     def test_service_postgres_login_preflight_uses_service_contract(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         state = State({"secrets": {"values": {"N8N_DB_PASS": "db-pass"}}})
@@ -664,7 +664,6 @@ class TestSpecialHandlers:
 
         mock_run.assert_called_once_with(
             [
-                "docker",
                 "exec",
                 "-e",
                 "PGPASSWORD=db-pass",
@@ -679,8 +678,7 @@ class TestSpecialHandlers:
                 "-c",
                 "select 1;",
             ],
-            capture_output=True,
-            text=True,
+            check=False,
         )
 
     def test_service_postgres_login_preflight_raises_when_password_missing(self):
@@ -690,7 +688,7 @@ class TestSpecialHandlers:
         with pytest.raises(RuntimeError, match="N8N_DB_PASS"):
             service_hooks.service_postgres_login_preflight(state, svc, Path("."), Path("."), Path("hook.log"), {})
 
-    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.docker_run")
     def test_service_postgres_login_preflight_raises_on_failed_login(self, mock_run):
         mock_run.return_value = MagicMock(returncode=2, stdout="", stderr="password authentication failed")
         state = State({"N8N_DB_PASS": "bad-pass"})
@@ -702,7 +700,7 @@ class TestSpecialHandlers:
 
 class TestRemoveSingleService:
     @patch("rakkib.steps.services.compose_down")
-    @patch("rakkib.steps.services.subprocess.run")
+    @patch("rakkib.steps.services.docker_run")
     def test_full_purge_removes_files_and_drops_postgres_resources(self, mock_run, mock_down, tmp_path):
         data_root = tmp_path / "srv"
         service_dir = data_root / "docker" / "n8n"

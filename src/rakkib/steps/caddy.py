@@ -9,6 +9,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from rakkib.docker import DockerError, create_network, docker_run
 from rakkib.render import render_file
 from rakkib.state import State
 from rakkib.steps import VerificationResult
@@ -30,18 +31,7 @@ def run(state: State) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Create external docker network if it does not exist.
-    net_check = subprocess.run(
-        ["docker", "network", "inspect", docker_net],
-        capture_output=True,
-        text=True,
-    )
-    if net_check.returncode != 0:
-        subprocess.run(
-            ["docker", "network", "create", docker_net],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    create_network(str(docker_net))
 
     repo = _repo_dir()
 
@@ -58,25 +48,23 @@ def run(state: State) -> None:
     caddy_next.write_text(header.read_text() + "\n" + footer.read_text())
 
     # 6a. Format the candidate Caddyfile.
-    subprocess.run(
+    docker_run(
         [
-            "docker", "run", "--rm",
+            "run", "--rm",
             "-v", f"{caddy_next}:/etc/caddy/Caddyfile",
             "caddy:2", "caddy", "fmt", "--overwrite", "/etc/caddy/Caddyfile",
         ],
-        capture_output=True,
-        text=True,
+        check=False,
     )
 
     # 6b. Validate candidate before replacing active file.
-    validate = subprocess.run(
+    validate = docker_run(
         [
-            "docker", "run", "--rm",
+            "run", "--rm",
             "-v", f"{caddy_next}:/etc/caddy/Caddyfile:ro",
             "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile",
         ],
-        capture_output=True,
-        text=True,
+        check=False,
     )
     if validate.returncode != 0:
         raise RuntimeError(
@@ -100,17 +88,13 @@ def run(state: State) -> None:
     # --force-recreate ensures the container restarts even if the compose file
     # didn't change, which is required when the previous Caddyfile had admin off
     # (making hot-reload via the admin API impossible).
-    up = subprocess.run(
-        ["docker", "compose", "up", "-d", "--force-recreate"],
-        cwd=str(caddy_dir),
-        capture_output=True,
-        text=True,
-    )
-    if up.returncode != 0:
+    try:
+        docker_run(["compose", "up", "-d", "--force-recreate"], cwd=caddy_dir)
+    except DockerError as exc:
         bak = caddy_dir / "Caddyfile.bak"
         if bak.exists():
             shutil.copy2(bak, caddyfile)
-        raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}. Restored previous Caddyfile.")
+        raise RuntimeError(f"docker compose up failed: {exc}. Restored previous Caddyfile.") from exc
 
     log_path.write_text("caddy step completed\n")
 
@@ -119,20 +103,12 @@ def verify(state: State) -> VerificationResult:
     docker_net = state.get("docker_net", "caddy_net")
 
     # Container running?
-    ps = subprocess.run(
-        ["docker", "ps", "--filter", "name=^caddy$", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True,
-    )
+    ps = docker_run(["ps", "--filter", "name=^caddy$", "--format", "{{.Names}}"], check=False)
     if "caddy" not in ps.stdout:
         return VerificationResult.failure("caddy", "Caddy container is not running")
 
     # Network exists?
-    net = subprocess.run(
-        ["docker", "network", "inspect", docker_net],
-        capture_output=True,
-        text=True,
-    )
+    net = docker_run(["network", "inspect", docker_net], check=False)
     if net.returncode != 0:
         return VerificationResult.failure(
             "caddy", f"Docker network {docker_net} does not exist"

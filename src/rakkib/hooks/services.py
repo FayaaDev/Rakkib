@@ -11,7 +11,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from rakkib.docker import container_running
+from rakkib.docker import container_running, docker_run
 from rakkib.doctor import wait_for_apt_locks
 from rakkib.render import render_file
 from rakkib.steps import selected_service_defs
@@ -50,12 +50,7 @@ def _restart_service(data_root: Path, svc_id: str) -> None:
     compose_path = svc_dir / "docker-compose.yml"
     if not compose_path.exists() or not container_running(svc_id):
         return
-    subprocess.run(
-        ["docker", "compose", "--project-directory", str(svc_dir), "restart"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    docker_run(["compose", "--project-directory", str(svc_dir), "restart"])
 
 
 def _service_admin_user(state) -> tuple[str, Path, int]:
@@ -535,12 +530,7 @@ def sync_shared_artifacts(state, repo: Path, data_root: Path, registry: dict) ->
         render_file(sync_script, kuma_data_dir / "sync-monitors.cjs", state)
 
         if container_running("uptime-kuma"):
-            subprocess.run(
-                ["docker", "exec", "uptime-kuma", "node", "/app/data/sync-monitors.cjs"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            docker_run(["exec", "uptime-kuma", "node", "/app/data/sync-monitors.cjs"])
 
 
 def service_postgres_login_preflight(
@@ -555,9 +545,8 @@ def service_postgres_login_preflight(
     del repo, data_root, log_path, registry
     role, db_name, password = _service_postgres_credentials(state, svc)
 
-    result = subprocess.run(
+    result = docker_run(
         [
-            "docker",
             "exec",
             "-e",
             f"PGPASSWORD={password}",
@@ -572,8 +561,7 @@ def service_postgres_login_preflight(
             "-c",
             "select 1;",
         ],
-        capture_output=True,
-        text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(

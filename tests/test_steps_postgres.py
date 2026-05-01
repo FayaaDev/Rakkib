@@ -34,7 +34,7 @@ def test_postgres_run_renders_env_and_compose(tmp_path):
     state = _make_state(tmp_path)
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -49,7 +49,7 @@ def test_postgres_run_generates_init_sql(tmp_path):
     state = _make_state(tmp_path)
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -104,7 +104,7 @@ def test_postgres_run_merges_existing_env(tmp_path):
     (postgres_dir / ".env").write_text("POSTGRES_PASSWORD=keep-me\nPOSTGRES_INITDB_ARGS=--foo\n")
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -122,7 +122,7 @@ def test_postgres_run_sets_env_permissions(tmp_path):
     state = _make_state(tmp_path)
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -138,7 +138,7 @@ def test_postgres_run_generates_secrets(tmp_path):
     assert state.get("secrets.values.POSTGRES_PASSWORD") is None
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -154,7 +154,7 @@ def test_postgres_run_no_secrets_generate_when_mode_not_generate(tmp_path):
     assert state.get("secrets.values.POSTGRES_PASSWORD") is None
 
     with patch("rakkib.steps.postgres._wait_for_healthy"):
-        with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+        with patch("rakkib.steps.postgres.docker_run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             mock_run.return_value.stderr = ""
@@ -166,23 +166,23 @@ def test_postgres_run_no_secrets_generate_when_mode_not_generate(tmp_path):
 def test_postgres_run_compose_up_failure(tmp_path):
     state = _make_state(tmp_path)
 
-    with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = "compose failed"
+    from rakkib.docker import DockerError
+
+    with patch("rakkib.steps.postgres.docker_run") as mock_run:
+        mock_run.side_effect = DockerError("compose failed", ["docker", "compose", "up"], 1, "compose failed")
         with pytest.raises(RuntimeError, match="docker compose up failed"):
             postgres.run(state)
 
 
 class TestWaitForHealthy:
-    @patch("rakkib.steps.postgres.subprocess.run")
+    @patch("rakkib.steps.postgres.docker_run")
     @patch("rakkib.steps.postgres.time")
     def test_returns_when_healthy(self, mock_time, mock_run):
         mock_run.return_value = MagicMock(stdout="healthy\n")
         postgres._wait_for_healthy()
         mock_run.assert_called_once()
 
-    @patch("rakkib.steps.postgres.subprocess.run")
+    @patch("rakkib.steps.postgres.docker_run")
     @patch("rakkib.steps.postgres.time")
     def test_raises_on_timeout(self, mock_time, mock_run):
         mock_run.return_value = MagicMock(stdout="starting\n")
@@ -201,11 +201,11 @@ def test_postgres_verify_success(tmp_path):
         r.returncode = 0
         r.stdout = ""
         r.stderr = ""
-        if cmd[0:2] == ["docker", "ps"]:
+        if cmd[0] == "ps":
             r.stdout = "postgres"
         return r
 
-    with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+    with patch("rakkib.steps.postgres.docker_run") as mock_run:
         mock_run.side_effect = side_effect
         result = postgres.verify(state)
 
@@ -226,7 +226,7 @@ def test_postgres_verify_failure_container_missing(tmp_path):
         r.stderr = ""
         return r
 
-    with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+    with patch("rakkib.steps.postgres.docker_run") as mock_run:
         mock_run.side_effect = side_effect
         result = postgres.verify(state)
 
@@ -245,14 +245,14 @@ def test_postgres_verify_failure_pg_isready(tmp_path):
         r.returncode = 0
         r.stdout = ""
         r.stderr = ""
-        if cmd[0:2] == ["docker", "ps"]:
+        if cmd[0] == "ps":
             r.stdout = "postgres"
-        elif cmd[0:2] == ["docker", "exec"] and "pg_isready" in cmd:
+        elif cmd[0] == "exec" and "pg_isready" in cmd:
             r.returncode = 1
             r.stderr = "connection refused"
         return r
 
-    with patch("rakkib.steps.postgres.subprocess.run") as mock_run:
+    with patch("rakkib.steps.postgres.docker_run") as mock_run:
         mock_run.side_effect = side_effect
         result = postgres.verify(state)
 

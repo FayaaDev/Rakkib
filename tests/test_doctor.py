@@ -152,14 +152,16 @@ class TestCheckDocker:
         assert "missing" in result.message
 
     @patch("rakkib.doctor._command_exists", return_value=True)
-    @patch("subprocess.run")
+    @patch("rakkib.doctor.docker_run")
     def test_unreachable(self, mock_run: MagicMock, _cmd: MagicMock):
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+        from rakkib.docker import DockerError
+
+        mock_run.side_effect = DockerError("daemon unreachable", ["docker", "info"], 1, "")
         result = check_docker()
         assert result.status == "fail"
 
     @patch("rakkib.doctor._command_exists", return_value=True)
-    @patch("subprocess.run")
+    @patch("rakkib.doctor.docker_run")
     def test_ok(self, mock_run: MagicMock, _cmd: MagicMock):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = check_docker()
@@ -174,7 +176,7 @@ class TestCheckCompose:
         assert "docker command is missing" in result.message
 
     @patch("rakkib.doctor._command_exists", return_value=True)
-    @patch("subprocess.run")
+    @patch("rakkib.doctor.docker_run")
     def test_ok(self, mock_run: MagicMock, _cmd: MagicMock):
         mock_run.return_value = MagicMock(returncode=0, stdout="Docker Compose version v2.24\n")
         result = check_compose()
@@ -182,7 +184,7 @@ class TestCheckCompose:
         assert "v2.24" in result.message
 
     @patch("rakkib.doctor._command_exists", return_value=True)
-    @patch("subprocess.run")
+    @patch("rakkib.doctor.docker_run")
     def test_fail(self, mock_run: MagicMock, _cmd: MagicMock):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
         result = check_compose()

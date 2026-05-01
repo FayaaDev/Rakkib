@@ -17,6 +17,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from rakkib.docker import DockerError, docker_run
 from rakkib.state import State
 
 
@@ -160,22 +161,14 @@ def _port_listeners(port: int) -> tuple[str | None, int]:
 def _docker_container_running(name: str) -> bool:
     if not _command_exists("docker"):
         return False
-    result = subprocess.run(
-        ["docker", "ps", "--filter", f"name=^/{name}$", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True,
-    )
+    result = docker_run(["ps", "--filter", f"name=^/{name}$", "--format", "{{.Names}}"], check=False)
     return result.returncode == 0 and result.stdout.strip() == name
 
 
 def _docker_container_publishes_port(name: str, port: int) -> bool:
     if not _command_exists("docker"):
         return False
-    result = subprocess.run(
-        ["docker", "ps", "--filter", f"name=^/{name}$", "--format", "{{.Names}} {{.Ports}}"],
-        capture_output=True,
-        text=True,
-    )
+    result = docker_run(["ps", "--filter", f"name=^/{name}$", "--format", "{{.Names}} {{.Ports}}"], check=False)
     if result.returncode != 0:
         return False
     line = result.stdout.strip()
@@ -314,24 +307,17 @@ def check_disk(data_root: str) -> CheckResult:
 def check_docker() -> CheckResult:
     if not _command_exists("docker"):
         return CheckResult("docker", "fail", True, "docker command is missing")
-    result = subprocess.run(
-        ["docker", "info"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
+    try:
+        docker_run(["info"])
         return CheckResult("docker", "ok", True, "daemon is reachable")
-    return CheckResult("docker", "fail", True, "docker command exists but daemon is not reachable")
+    except DockerError as exc:
+        return CheckResult("docker", "fail", True, str(exc))
 
 
 def check_compose() -> CheckResult:
     if not _command_exists("docker"):
         return CheckResult("compose", "fail", True, "docker command is missing")
-    result = subprocess.run(
-        ["docker", "compose", "version"],
-        capture_output=True,
-        text=True,
-    )
+    result = docker_run(["compose", "version"], check=False)
     if result.returncode == 0 and result.stdout.strip():
         return CheckResult("compose", "ok", True, result.stdout.strip())
     return CheckResult("compose", "fail", True, "Docker Compose v2 is not available through 'docker compose'")

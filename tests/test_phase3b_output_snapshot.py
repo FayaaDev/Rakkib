@@ -38,13 +38,15 @@ def _render_output_tree(tmp_path: Path) -> Path:
 
     with (
         patch("rakkib.steps.caddy.subprocess.run", side_effect=_fake_run),
-        patch("rakkib.steps.postgres.subprocess.run", side_effect=_fake_run),
+        patch("rakkib.steps.caddy.create_network"),
+        patch("rakkib.steps.caddy.docker_run", side_effect=_fake_run),
+        patch("rakkib.steps.postgres.docker_run", side_effect=_fake_run),
         patch("rakkib.steps.postgres._wait_for_healthy"),
         patch("rakkib.steps.postgres._apply_sql"),
         patch("rakkib.steps.services.compose_up"),
         patch("rakkib.steps.services._reload_caddy"),
         patch("rakkib.steps.services.subprocess.run", side_effect=_fake_run),
-        patch("rakkib.hooks.services.subprocess.run", side_effect=_fake_run),
+        patch("rakkib.hooks.services.docker_run", side_effect=_fake_run),
         patch("rakkib.hooks.services.container_running", return_value=True),
     ):
         caddy.run(state)

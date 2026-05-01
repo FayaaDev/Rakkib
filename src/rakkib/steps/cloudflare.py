@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from rakkib.docker import compose_up, container_running, DockerError
+from rakkib.docker import compose_up, container_running, DockerError, docker_run
 from rakkib.doctor import attempt_fix_cloudflared
 from rakkib.render import render_file
 from rakkib.state import State
@@ -640,11 +640,7 @@ def verify(state: State) -> VerificationResult:
         if health.returncode == 0:
             metrics_ok = True
             break
-        rc = subprocess.run(
-            ["docker", "inspect", "-f", "{{.RestartCount}}", "cloudflared"],
-            capture_output=True,
-            text=True,
-        )
+        rc = docker_run(["inspect", "-f", "{{.RestartCount}}", "cloudflared"], check=False)
         try:
             restart_count = int(rc.stdout.strip())
         except ValueError:
@@ -653,10 +649,9 @@ def verify(state: State) -> VerificationResult:
             break
         time.sleep(METRICS_RETRY_INTERVAL_SEC)
     if not metrics_ok:
-        logs = subprocess.run(
-            ["docker", "logs", "--tail", str(LOGS_TAIL_LINES), "cloudflared"],
-            capture_output=True,
-            text=True,
+        logs = docker_run(
+            ["logs", "--tail", str(LOGS_TAIL_LINES), "cloudflared"],
+            check=False,
             timeout=5,
         )
         log_tail = (logs.stdout + logs.stderr).strip() or "(no logs available)"
@@ -669,10 +664,9 @@ def verify(state: State) -> VerificationResult:
         msg += f"\n--- last {LOGS_TAIL_LINES} lines of docker logs cloudflared ---\n{log_tail}"
         return VerificationResult.failure("cloudflare", msg)
 
-    edge_logs = subprocess.run(
-        ["docker", "logs", "--tail", str(EDGE_LOGS_TAIL_LINES), "cloudflared"],
-        capture_output=True,
-        text=True,
+    edge_logs = docker_run(
+        ["logs", "--tail", str(EDGE_LOGS_TAIL_LINES), "cloudflared"],
+        check=False,
         timeout=5,
     )
     edge_log_text = (edge_logs.stdout + edge_logs.stderr).strip()

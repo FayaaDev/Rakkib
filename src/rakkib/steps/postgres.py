@@ -6,9 +6,9 @@ Deploy PostgreSQL and create one database/user pair per selected service.
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 
+from rakkib.docker import DockerError, docker_run
 from rakkib.render import render_file, render_text
 from rakkib.secrets import ensure_secrets
 from rakkib.state import State
@@ -110,11 +110,10 @@ def _generate_init_sql(state: State) -> str:
 
 def _apply_sql(sql: str) -> None:
     """Execute *sql* directly inside the postgres container via psql."""
-    result = subprocess.run(
-        ["docker", "exec", "-i", "postgres", "psql", "-U", "postgres"],
+    result = docker_run(
+        ["exec", "-i", "postgres", "psql", "-U", "postgres"],
         input=sql,
-        capture_output=True,
-        text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -125,10 +124,9 @@ def _apply_sql(sql: str) -> None:
 def _wait_for_healthy(container: str = "postgres", timeout: int = 60) -> None:
     """Poll Docker health status until *container* is healthy."""
     def poll() -> bool:
-        result = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Health.Status}}", container],
-            capture_output=True,
-            text=True,
+        result = docker_run(
+            ["inspect", "--format", "{{.State.Health.Status}}", container],
+            check=False,
         )
         return result.stdout.strip() == "healthy"
 
@@ -176,15 +174,10 @@ def run(state: State) -> None:
     )
 
     # 5. Start PostgreSQL.
-    with progress_spinner("Starting PostgreSQL..."):
-        up = subprocess.run(
-            ["docker", "compose", "up", "-d"],
-            cwd=str(postgres_dir),
-            capture_output=True,
-            text=True,
-        )
-    if up.returncode != 0:
-        raise RuntimeError(f"docker compose up failed: {up.stderr.strip()}")
+    try:
+        docker_run(["compose", "up", "-d"], cwd=postgres_dir, progress_message="Starting PostgreSQL...")
+    except DockerError as exc:
+        raise RuntimeError(f"docker compose up failed: {exc}") from exc
 
     # 6. Wait for healthy.
     _wait_for_healthy()
@@ -200,20 +193,12 @@ def run(state: State) -> None:
 
 def verify(state: State) -> VerificationResult:
     # Container running?
-    ps = subprocess.run(
-        ["docker", "ps", "--filter", "name=^postgres$", "--format", "{{.Names}}"],
-        capture_output=True,
-        text=True,
-    )
+    ps = docker_run(["ps", "--filter", "name=^postgres$", "--format", "{{.Names}}"], check=False)
     if "postgres" not in ps.stdout:
         return VerificationResult.failure("postgres", "Postgres container is not running")
 
     # pg_isready?
-    ready = subprocess.run(
-        ["docker", "exec", "postgres", "pg_isready", "-U", "postgres"],
-        capture_output=True,
-        text=True,
-    )
+    ready = docker_run(["exec", "postgres", "pg_isready", "-U", "postgres"], check=False)
     if ready.returncode != 0:
         return VerificationResult.failure("postgres", f"pg_isready failed: {ready.stderr.strip()}")
 

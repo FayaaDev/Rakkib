@@ -16,6 +16,7 @@ import click
 from questionary import Choice
 from rich.console import Console
 
+from rakkib.docker import DockerError, docker_run
 from rakkib.doctor import (
     attempt_fix_cloudflared,
     attempt_fix_compose,
@@ -250,18 +251,22 @@ def _check_docker() -> bool:
             return False
         console.print("[green]Docker installed successfully.[/green]")
 
-    compose_check = subprocess.run(["docker", "compose", "version"],
-                                   capture_output=True, text=True)
+    compose_check = docker_run(["compose", "version"], check=False)
     if compose_check.returncode != 0:
         with progress_spinner("Installing Docker Compose plugin..."):
             msg = attempt_fix_compose()
         console.print(f"[dim]{msg}[/dim]")
-        compose_check = subprocess.run(["docker", "compose", "version"],
-                                       capture_output=True, text=True)
+        compose_check = docker_run(["compose", "version"], check=False)
         if compose_check.returncode != 0:
             console.print("[bold red]docker compose plugin installation did not succeed. Aborting.[/bold red]")
             return False
         console.print("[green]docker compose plugin installed successfully.[/green]")
+
+    try:
+        docker_run(["info"])
+    except DockerError as exc:
+        console.print(f"[bold red]Docker is installed but not usable by this shell:[/bold red] {exc}")
+        return False
 
     return True
 
