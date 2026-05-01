@@ -390,6 +390,40 @@ class TestRunSingleService:
 
 
 class TestSpecialHandlers:
+    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.os.geteuid", return_value=1000)
+    def test_run_as_user_injects_package_manager_safe_env(self, _mock_euid, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        service_hooks._run_as_user(
+            "admin",
+            Path("/home/admin"),
+            1000,
+            ["true"],
+            extra_env={"OPENCLAW_NO_PROMPT": "1"},
+        )
+
+        env = mock_run.call_args.kwargs["env"]
+        assert env["DEBIAN_FRONTEND"] == "noninteractive"
+        assert env["APT_LISTCHANGES_FRONTEND"] == "none"
+        assert env["NEEDRESTART_MODE"] == "a"
+        assert env["NEEDRESTART_SUSPEND"] == "1"
+        assert env["UCF_FORCE_CONFFOLD"] == "1"
+        assert env["OPENCLAW_NO_PROMPT"] == "1"
+
+    @patch("rakkib.hooks.services.subprocess.run")
+    @patch("rakkib.hooks.services.os.geteuid", return_value=0)
+    def test_run_as_user_preserves_safe_env_when_using_sudo(self, _mock_euid, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        service_hooks._run_as_user("admin", Path("/home/admin"), 1000, ["true"])
+
+        run_cmd = mock_run.call_args.args[0]
+        assert run_cmd[:5] == ["sudo", "-n", "-u", "admin", "-H"]
+        assert "DEBIAN_FRONTEND=noninteractive" in run_cmd
+        assert "NEEDRESTART_MODE=a" in run_cmd
+        assert "NEEDRESTART_SUSPEND=1" in run_cmd
+
     @patch("rakkib.hooks.services._run_as_service_user")
     @patch("rakkib.hooks.services.shutil.which", return_value=None)
     def test_resolve_openclaw_bin_uses_service_user_shell(self, _mock_which, mock_run_as_user):

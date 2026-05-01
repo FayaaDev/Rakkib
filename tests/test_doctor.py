@@ -358,6 +358,8 @@ class TestAttemptFixDocker:
         msg = attempt_fix_docker()
         assert "get.docker.com" in msg
         mock_wait.assert_called_once()
+        assert mock_run.call_args_list[0].kwargs["env"]["DEBIAN_FRONTEND"] == "noninteractive"
+        assert mock_run.call_args_list[0].kwargs["env"]["NEEDRESTART_MODE"] == "a"
 
     @patch("platform.system", return_value="Linux")
     @patch("rakkib.doctor.wait_for_apt_locks", return_value=None)
@@ -415,22 +417,56 @@ class TestWaitForAptLocks:
     ):
         msg = wait_for_apt_locks(timeout=1, interval=0)
         assert msg is not None
-        assert "unattended-upgrades" in msg
+        assert "Ubuntu automatic updates" in msg
         assert "sudo systemctl stop unattended-upgrades" in msg
+
+    @patch("time.sleep")
+    @patch("time.monotonic", side_effect=[0, 0, 2])
+    @patch("rakkib.doctor._locked_apt_files", return_value=["/var/lib/dpkg/lock-frontend"])
+    def test_notifies_once_when_locked(
+        self,
+        _locks: MagicMock,
+        _time: MagicMock,
+        _sleep: MagicMock,
+    ):
+        notices: list[list[str]] = []
+        wait_for_apt_locks(timeout=1, interval=0, on_wait=notices.append)
+        assert notices == [["/var/lib/dpkg/lock-frontend"]]
 
 
 class TestAttemptFixCompose:
+    @patch("rakkib.doctor.wait_for_apt_locks", return_value=None)
+    @patch("rakkib.doctor._command_exists", return_value=True)
     @patch("platform.machine", return_value="x86_64")
     @patch("subprocess.run")
-    def test_install_success(self, mock_run: MagicMock, _machine: MagicMock):
-        mock_run.side_effect = [
-            MagicMock(returncode=0, stderr=""),
-            MagicMock(returncode=0, stderr=""),
-            MagicMock(returncode=0, stderr=""),
-            MagicMock(returncode=0, stdout="Docker Compose version v2.35.1", stderr=""),
-        ]
+    def test_install_success(
+        self,
+        mock_run: MagicMock,
+        _machine: MagicMock,
+        _cmd: MagicMock,
+        mock_wait: MagicMock,
+    ):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
         msg = attempt_fix_compose()
-        assert "installed successfully" in msg
+        assert "docker-compose-plugin installed via apt" in msg
+        mock_wait.assert_called_once()
+        assert "DPkg::Lock::Timeout=900" in mock_run.call_args.args[0]
+        assert "DEBIAN_FRONTEND=noninteractive" in mock_run.call_args.args[0]
+        assert "NEEDRESTART_SUSPEND=1" in mock_run.call_args.args[0]
+        assert mock_run.call_args.kwargs["env"]["NEEDRESTART_MODE"] == "a"
+
+    @patch("rakkib.doctor.wait_for_apt_locks", return_value="Timed out waiting for apt/dpkg locks")
+    @patch("rakkib.doctor._command_exists", return_value=True)
+    @patch("subprocess.run")
+    def test_apt_lock_timeout_skips_compose_install(
+        self,
+        mock_run: MagicMock,
+        _cmd: MagicMock,
+        _wait: MagicMock,
+    ):
+        msg = attempt_fix_compose()
+        assert "Timed out waiting" in msg
+        mock_run.assert_not_called()
 
     @patch("platform.machine", return_value="x86_64")
     @patch("subprocess.run")

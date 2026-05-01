@@ -11,10 +11,11 @@ import platform
 import shutil
 import struct
 import subprocess
+import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from rakkib.state import State
 
@@ -42,6 +43,16 @@ APT_LOCK_PATHS = (
     Path("/var/lib/apt/lists/lock"),
     Path("/var/cache/apt/archives/lock"),
 )
+
+APT_LOCK_WAIT_MESSAGE = "Ubuntu automatic updates are running; waiting for apt/dpkg to become available..."
+
+PACKAGE_MANAGER_SAFE_ENV = {
+    "DEBIAN_FRONTEND": "noninteractive",
+    "APT_LISTCHANGES_FRONTEND": "none",
+    "NEEDRESTART_MODE": "a",
+    "NEEDRESTART_SUSPEND": "1",
+    "UCF_FORCE_CONFFOLD": "1",
+}
 
 
 def _locked_apt_files() -> list[str]:
@@ -78,22 +89,43 @@ def _locked_apt_files() -> list[str]:
     return sorted(set(locked))
 
 
-def wait_for_apt_locks(timeout: int = 600, interval: float = 5) -> str | None:
+def wait_for_apt_locks(
+    timeout: int = 900,
+    interval: float = 5,
+    on_wait: Callable[[list[str]], None] | None = None,
+) -> str | None:
     """Wait until apt/dpkg locks clear. Return an error message on timeout."""
     deadline = time.monotonic() + timeout
+    notified = False
     while True:
         locked = _locked_apt_files()
         if not locked:
             return None
+        if not notified:
+            if on_wait is not None:
+                on_wait(locked)
+            else:
+                print(APT_LOCK_WAIT_MESSAGE, file=sys.stderr)
+            notified = True
         if time.monotonic() >= deadline:
             files = ", ".join(locked)
             return (
                 f"Timed out waiting for apt/dpkg locks: {files}. "
-                "Another package manager is running, commonly unattended-upgrades on first boot. "
-                "Wait a few minutes and rerun, or if it is stuck run "
+                "Ubuntu automatic updates or another package manager is still running. "
+                "Wait for it to finish and rerun; if it is stuck run "
                 "'sudo systemctl stop unattended-upgrades' and rerun."
             )
         time.sleep(interval)
+
+
+def _notify_apt_wait(_locked: list[str]) -> None:
+    print(APT_LOCK_WAIT_MESSAGE, file=sys.stderr)
+
+
+def _package_manager_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(PACKAGE_MANAGER_SAFE_ENV)
+    return env
 
 
 def _normalize_arch(raw: str) -> str | None:
@@ -595,7 +627,7 @@ def attempt_fix_docker() -> str:
         return "curl is required but not found. Install curl first."
 
     if _command_exists("apt-get"):
-        lock_error = wait_for_apt_locks()
+        lock_error = wait_for_apt_locks(on_wait=_notify_apt_wait)
         if lock_error:
             return lock_error
 
@@ -603,6 +635,7 @@ def attempt_fix_docker() -> str:
         ["sh", "-c", "curl -fsSL https://get.docker.com | sh"],
         capture_output=True,
         text=True,
+        env=_package_manager_env(),
     )
     if result.returncode != 0:
         return f"get.docker.com install failed: {result.stderr.strip() or 'unknown error'}"
@@ -616,11 +649,15 @@ def attempt_fix_compose() -> str:
     """Install docker-compose-plugin. Returns a message describing the result."""
     # get.docker.com adds the Docker apt repo, so the plugin is available via apt.
     if _command_exists("apt-get"):
+        lock_error = wait_for_apt_locks(on_wait=_notify_apt_wait)
+        if lock_error:
+            return lock_error
         result = subprocess.run(
-            ["sudo", "apt-get", "install", "-y", "-q",
-             "-o", "DPkg::Lock::Timeout=60", "docker-compose-plugin"],
+            ["sudo", "env", *[f"{key}={value}" for key, value in PACKAGE_MANAGER_SAFE_ENV.items()], "apt-get", "install", "-y", "-q",
+             "-o", "DPkg::Lock::Timeout=900", "docker-compose-plugin"],
             capture_output=True,
             text=True,
+            env=_package_manager_env(),
         )
         if result.returncode == 0:
             return "docker-compose-plugin installed via apt."

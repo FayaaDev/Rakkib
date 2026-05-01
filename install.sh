@@ -107,17 +107,23 @@ wait_for_apt_locks() {
     done
     [[ $busy -eq 0 ]] && return 0
     if [[ $waited -eq 0 ]]; then
-      log "Waiting for apt/dpkg locks (unattended-upgrades may be running on first boot)..."
+      log "Ubuntu automatic updates are running; waiting for apt/dpkg to become available..."
     fi
     sleep 5
     waited=$((waited + 5))
-    [[ $waited -ge 300 ]] && die "Timed out after 5 min waiting for apt locks. Fix: sudo killall unattended-upgrades"
+    [[ $waited -ge 900 ]] && die "Timed out after 15 min waiting for apt/dpkg locks. Ubuntu automatic updates or another package manager is still running. Wait for it to finish and rerun install.sh; if it is stuck, run 'sudo systemctl stop unattended-upgrades' and rerun."
   done
 }
 
 apt_get() {
-  local timeout="${RAKKIB_APT_LOCK_TIMEOUT:-600}"
-  sudo apt-get -o "DPkg::Lock::Timeout=${timeout}" "$@"
+  local timeout="${RAKKIB_APT_LOCK_TIMEOUT:-900}"
+  sudo env \
+    DEBIAN_FRONTEND=noninteractive \
+    APT_LISTCHANGES_FRONTEND=none \
+    NEEDRESTART_MODE=a \
+    NEEDRESTART_SUSPEND=1 \
+    UCF_FORCE_CONFFOLD=1 \
+    apt-get -o "DPkg::Lock::Timeout=${timeout}" "$@"
 }
 
 # Install python3 + python3-venv via the system package manager.

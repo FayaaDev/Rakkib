@@ -27,6 +27,14 @@ _OPENCLAW_GATEWAY_TIMEOUT = 180
 _OPENCLAW_PAIRING_TIMEOUT = 180
 _OPENCLAW_GATEWAY_BIND = "lan"
 
+PACKAGE_MANAGER_SAFE_ENV = {
+    "DEBIAN_FRONTEND": "noninteractive",
+    "APT_LISTCHANGES_FRONTEND": "none",
+    "NEEDRESTART_MODE": "a",
+    "NEEDRESTART_SUSPEND": "1",
+    "UCF_FORCE_CONFFOLD": "1",
+}
+
 
 def _write_text_if_changed(path: Path, content: str) -> bool:
     existing = path.read_text() if path.exists() else None
@@ -80,6 +88,7 @@ def _run_as_user(
             "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{user_uid}/bus",
         }
     )
+    env.update(PACKAGE_MANAGER_SAFE_ENV)
     if extra_env:
         env.update(extra_env)
 
@@ -98,6 +107,7 @@ def _run_as_user(
             f"XDG_RUNTIME_DIR=/run/user/{user_uid}",
             f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user_uid}/bus",
         ]
+        run_cmd.extend(f"{key}={value}" for key, value in PACKAGE_MANAGER_SAFE_ENV.items())
         if extra_env:
             run_cmd.extend(f"{key}={value}" for key, value in extra_env.items())
         run_cmd += command
@@ -111,7 +121,8 @@ def _run_as_user(
         label = timeout_label or " ".join(command)
         raise RuntimeError(
             f"{label} timed out after {timeout} seconds. "
-            "If Ubuntu unattended-upgrades or another package manager is still running, wait for it to finish and rerun `rakkib add openclaw`."
+            "If apt, dpkg, needrestart, Ubuntu automatic updates, or another package manager is still running, "
+            "wait for it to finish and rerun the Rakkib command."
         ) from exc
 
 
@@ -266,7 +277,7 @@ def _wait_for_openclaw_package_locks() -> None:
     if shutil.which("apt-get") is None:
         return
 
-    with progress_spinner("Waiting for apt/dpkg locks to clear..."):
+    with progress_spinner("Ubuntu automatic updates are running; waiting for apt/dpkg to become available..."):
         lock_error = wait_for_apt_locks()
     if lock_error:
         raise RuntimeError(f"OpenClaw setup cannot continue while apt/dpkg is locked. {lock_error}")
