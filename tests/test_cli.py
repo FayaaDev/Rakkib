@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -744,6 +745,37 @@ class TestAdd:
         assert saved_state.get("HOMEPAGE_SUBDOMAIN") == "home"
         assert saved_state.get("NOCODB_SUBDOMAIN") == "nocodb"
         assert saved_state.get("N8N_SUBDOMAIN") is None
+
+    def test_add_uses_spinner_when_applying_changes(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text(
+            "foundation_services:\n  - homepage\n"
+            "selected_services: []\n"
+            "domain: example.com\n"
+            "subdomains:\n"
+            "  homepage: home\n"
+            "HOMEPAGE_SUBDOMAIN: home\n"
+        )
+
+        with (
+            patch("rakkib.steps.services._load_registry") as mock_reg,
+            patch("rakkib.cli.prompt_checkbox", return_value=["homepage", "openclaw"]),
+            patch("rakkib.cli.prompt_confirm", return_value=True),
+            patch("rakkib.cli.progress_spinner", return_value=nullcontext()) as mock_spinner,
+            patch("rakkib.steps.services._generate_missing_secrets"),
+            patch("rakkib.steps.postgres.run"),
+            patch("rakkib.steps.services.run_single_service"),
+        ):
+            mock_reg.return_value = self._make_registry()
+            result = runner.invoke(cli, ["add"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        mock_spinner.assert_called_once_with("Applying service changes...")
+        saved_state = State.load(state_file)
+        assert saved_state.get("selected_services") == ["openclaw"]
 
 
 class TestUninstallPathBlock:

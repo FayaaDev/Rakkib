@@ -606,32 +606,33 @@ def add(ctx: click.Context, service: str | None) -> None:
     else:
         console.print("[yellow]No selection changes; refreshing selected services.[/yellow]")
 
-    removal_order = [
-        svc["id"]
-        for svc in reversed(selected_service_defs(state, registry))
-        if svc["id"] in removed
-    ]
-    for svc_id in removal_order:
-        services_step.remove_single_service(state, svc_id)
+    with progress_spinner("Applying service changes..."):
+        removal_order = [
+            svc["id"]
+            for svc in reversed(selected_service_defs(state, registry))
+            if svc["id"] in removed
+        ]
+        for svc_id in removal_order:
+            services_step.remove_single_service(state, svc_id)
 
-    _apply_service_selection(state, registry, selected_ids)
-    services_step._generate_missing_secrets(state)
-    state.save(state_path)
+        _apply_service_selection(state, registry, selected_ids)
+        services_step._generate_missing_secrets(state)
+        state.save(state_path)
 
-    postgres_step.run(state)
-    if service:
-        services_step.run_single_service(state, service)
-    elif added:
-        for svc_id in added:
-            services_step.run_single_service(state, svc_id)
-    else:
-        # Removals-only or no changes — reload caddy to apply route changes and sync
-        data_root = Path(state.get("data_root", "/srv"))
-        services_step._reload_caddy(data_root)
-        services_step.sync_shared_artifacts(
-            state, services_step._repo_dir(), data_root, services_step._load_registry()
-        )
-    state.save(state_path)
+        postgres_step.run(state)
+        if service:
+            services_step.run_single_service(state, service)
+        elif added:
+            for svc_id in added:
+                services_step.run_single_service(state, svc_id)
+        else:
+            # Removals-only or no changes — reload caddy to apply route changes and sync
+            data_root = Path(state.get("data_root", "/srv"))
+            services_step._reload_caddy(data_root)
+            services_step.sync_shared_artifacts(
+                state, services_step._repo_dir(), data_root, services_step._load_registry()
+            )
+        state.save(state_path)
 
     console.print("[bold green]Service selection synced successfully.[/bold green]")
     deployed_ids: list[str] | None = None
