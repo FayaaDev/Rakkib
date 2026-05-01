@@ -28,8 +28,9 @@ class DockerError(Exception):
 
 
 DOCKER_PERMISSION_HINT = (
-    "Docker permission denied. If Docker was just installed for this user, run "
-    "`newgrp docker` or open a new shell, verify with `docker info`, then rerun `rakkib pull`."
+    "Docker is installed, but this user cannot access /var/run/docker.sock. "
+    "Add the user to the docker group, then run `newgrp docker` or open a new shell, "
+    "verify with `docker info`, and rerun `rakkib pull`."
 )
 
 
@@ -206,7 +207,7 @@ def create_network(network_name: str, driver: str = "bridge") -> None:
     docker_run(["network", "create", "--driver", driver, network_name])
 
 
-def _is_docker_permission_error(text: str) -> bool:
+def is_docker_permission_error(text: str) -> bool:
     lower = text.lower()
     return (
         "permission denied" in lower
@@ -216,6 +217,10 @@ def _is_docker_permission_error(text: str) -> bool:
             or "/var/run/docker" in lower
         )
     )
+
+
+def _is_docker_permission_error(text: str) -> bool:
+    return is_docker_permission_error(text)
 
 
 def _error_message(cmd: list[str], returncode: int, stderr: str, log_hint: str) -> str:

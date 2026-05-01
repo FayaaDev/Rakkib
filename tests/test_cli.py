@@ -899,18 +899,17 @@ class TestCheckDocker:
     def test_docker_missing_aborts(self):
         with (
             patch("rakkib.cli.shutil.which", return_value=None),
-            patch("rakkib.tui.prompt_confirm", return_value=False),
+            patch("rakkib.cli.attempt_fix_docker", return_value="install failed"),
         ):
             from rakkib.cli import _check_docker
             assert _check_docker() is False
 
     def test_docker_available_passes(self):
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Docker Compose version v2.24.0"
+        info_ok = MagicMock(returncode=0, stderr="")
+        compose_ok = MagicMock(returncode=0, stdout="Docker Compose version v2.24.0", stderr="")
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
-            patch("rakkib.cli.subprocess.run", return_value=mock_result),
+            patch("rakkib.cli.subprocess.run", side_effect=[info_ok, compose_ok]),
         ):
             from rakkib.cli import _check_docker
             assert _check_docker() is True
@@ -919,10 +918,12 @@ class TestCheckDocker:
         compose_missing = MagicMock()
         compose_missing.returncode = 1
         compose_missing.stdout = ""
+        compose_missing.stderr = "compose not found"
+        info_ok = MagicMock(returncode=0, stderr="")
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
-            patch("rakkib.cli.subprocess.run", return_value=compose_missing),
-            patch("rakkib.tui.prompt_confirm", return_value=False),
+            patch("rakkib.cli.subprocess.run", side_effect=[info_ok, compose_missing, compose_missing]),
+            patch("rakkib.cli.attempt_fix_compose", return_value="compose install failed"),
         ):
             from rakkib.cli import _check_docker
             assert _check_docker() is False
@@ -931,14 +932,63 @@ class TestCheckDocker:
         compose_missing = MagicMock()
         compose_missing.returncode = 1
         compose_missing.stdout = ""
+        compose_missing.stderr = "compose not found"
         compose_ok = MagicMock()
         compose_ok.returncode = 0
         compose_ok.stdout = "Docker Compose version v2.35.1"
+        compose_ok.stderr = ""
+        info_ok = MagicMock(returncode=0, stderr="")
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
-            patch("rakkib.cli.subprocess.run", side_effect=[compose_missing, compose_ok]),
-            patch("rakkib.tui.prompt_confirm", return_value=True),
-            patch("rakkib.doctor.attempt_fix_compose", return_value="docker compose plugin installed successfully."),
+            patch("rakkib.cli.subprocess.run", side_effect=[info_ok, compose_missing, compose_ok]),
+            patch("rakkib.cli.attempt_fix_compose", return_value="docker compose plugin installed successfully."),
         ):
             from rakkib.cli import _check_docker
             assert _check_docker() is True
+
+    def test_docker_permission_denied_repairs_group_access(self):
+        info_denied = MagicMock(
+            returncode=1,
+            stderr="permission denied while trying to connect to /var/run/docker.sock",
+        )
+        sudo_ok = MagicMock(returncode=0, stdout="", stderr="")
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.os.geteuid", return_value=1000),
+            patch("rakkib.cli.getpass.getuser", return_value="ubuntu"),
+            patch(
+                "rakkib.cli.subprocess.run",
+                side_effect=[info_denied, sudo_ok, sudo_ok, sudo_ok],
+            ) as mock_run,
+        ):
+            from rakkib.cli import _check_docker
+
+            assert _check_docker() is False
+
+        assert ["sudo", "-n", "usermod", "-aG", "docker", "ubuntu"] in [
+            call.args[0] for call in mock_run.call_args_list
+        ]
+
+    def test_compose_permission_denied_does_not_install_compose(self):
+        info_ok = MagicMock(returncode=0, stderr="")
+        compose_denied = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="permission denied while trying to connect to /var/run/docker.sock",
+        )
+        sudo_ok = MagicMock(returncode=0, stdout="", stderr="")
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.os.geteuid", return_value=1000),
+            patch("rakkib.cli.getpass.getuser", return_value="ubuntu"),
+            patch(
+                "rakkib.cli.subprocess.run",
+                side_effect=[info_ok, compose_denied, sudo_ok, sudo_ok, sudo_ok],
+            ),
+            patch("rakkib.cli.attempt_fix_compose") as mock_fix_compose,
+        ):
+            from rakkib.cli import _check_docker
+
+            assert _check_docker() is False
+
+        mock_fix_compose.assert_not_called()

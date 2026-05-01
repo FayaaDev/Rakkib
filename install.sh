@@ -270,14 +270,19 @@ Rakkib is installed.
 Repo:  ${INSTALL_DIR}
 Venv:  ${INSTALL_DIR}/.venv
 
-Next step:
+Next steps:
   rakkib init
+  rakkib auth sudo
+  rakkib pull
 
 If rakkib is not on PATH yet, run one of:
   source ~/.bashrc   |   source ~/.zshrc   |   source ~/.profile
 
 Or run directly:
   ${HOME}/.local/bin/rakkib init
+
+If Docker access is prepared for a non-root user during pull, open a new shell
+or run 'newgrp docker' before rerunning 'rakkib pull'.
 
 To uninstall:
   rm -rf ${INSTALL_DIR} ${HOME}/.local/bin/rakkib
