@@ -805,7 +805,13 @@ def privileged_ensure_layout(
     console.print(f"[bold green]Creating Rakkib layout under {data_root}[/bold green]")
     root = Path(data_root)
     # These dirs are admin-owned by design; recurse into them safely.
-    admin_dirs = [root / "docker", root / "apps" / "static", root / "backups", root / "MDs"]
+    admin_dirs = [
+        root / "docker",
+        root / "apps" / "static",
+        root / "backups",
+        root / "MDs",
+        root / "logs",
+    ]
     # These dirs must be created but NOT recursed — data/ contains service-managed UIDs.
     top_only = [root, root / "apps", root / "data"]
 

@@ -61,12 +61,36 @@ def test_layout_run_sudo_on_linux(tmp_path):
     )
     with patch("os.geteuid", return_value=1000):
         with patch("rakkib.steps.layout.subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            layout.run(state)
+            with patch("pathlib.Path.write_text"):
+                mock_run.return_value.returncode = 0
+                layout.run(state)
 
     # First call should be mkdir -p, subsequent calls chown.
     calls = mock_run.call_args_list
     assert calls[0][0][0][0:3] == ["sudo", "-n", "mkdir"]
+    assert calls[1][0][0] == ["sudo", "-n", "chown", "ubuntu", str(tmp_path)]
+
+
+def test_layout_run_sudo_creates_logs_before_writing(tmp_path):
+    state = State(
+        {
+            "data_root": str(tmp_path / "srv"),
+            "platform": "linux",
+            "admin_user": "ubuntu",
+            "foundation_services": [],
+            "selected_services": [],
+        }
+    )
+
+    with patch("os.geteuid", return_value=1000):
+        with patch("rakkib.steps.layout.subprocess.run") as mock_run:
+            with patch("pathlib.Path.write_text"):
+                mock_run.return_value.returncode = 0
+                layout.run(state)
+
+    mkdir_args = mock_run.call_args_list[0][0][0]
+    assert mkdir_args[0:4] == ["sudo", "-n", "mkdir", "-p"]
+    assert str(tmp_path / "srv" / "logs") in mkdir_args
 
 
 def test_layout_run_sudo_failure_raises(tmp_path):

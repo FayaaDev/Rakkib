@@ -39,9 +39,6 @@ def run(state: State) -> None:
     for svc in services:
         dirs.append(data_root / "docker" / svc)
 
-    log_path = data_root / "logs" / "layout.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
     if platform == "linux" and os.geteuid() != 0:
         # Attempt password-less sudo for directory creation.
         result = subprocess.run(
@@ -59,7 +56,7 @@ def run(state: State) -> None:
         if admin_user:
             for d in dirs:
                 subprocess.run(
-                    ["sudo", "-n", "chown", f"{admin_user}:{admin_user}", str(d)],
+                    ["sudo", "-n", "chown", str(admin_user), str(d)],
                     capture_output=True,
                     text=True,
                 )
@@ -68,6 +65,7 @@ def run(state: State) -> None:
             d.mkdir(parents=True, exist_ok=True)
 
     # Write a simple log entry for idempotency tracking.
+    log_path = data_root / "logs" / "layout.log"
     log_path.write_text("layout step completed\n")
 
 

@@ -875,6 +875,7 @@ class TestPrivileged:
         assert result.exit_code == 0
         assert data_root.exists()
         assert (data_root / "docker").exists()
+        assert (data_root / "logs").exists()
         mock_chown.assert_called()
 
     def test_privileged_fix_repo_owner(self, tmp_path: Path, monkeypatch):
