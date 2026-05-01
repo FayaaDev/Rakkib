@@ -844,6 +844,55 @@ class TestAuth:
         result = runner.invoke(cli, ["auth", "--help"])
         assert result.exit_code == 0
 
+    def test_auth_docker_prepares_access(self, tmp_path: Path, monkeypatch):
+        from rakkib.docker import DockerError
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        (repo_dir / ".fss-state.yaml").write_text("admin_user: ubuntu\n")
+        sudo_ok = MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(os, "geteuid", lambda: 1000)
+        monkeypatch.setenv("RAKKIB_ASSUME_TTY", "1")
+        runner = CliRunner()
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch(
+                "rakkib.cli.docker_run",
+                side_effect=DockerError(
+                    "denied",
+                    ["docker", "info"],
+                    1,
+                    "permission denied while trying to connect to /var/run/docker.sock",
+                ),
+            ),
+            patch(
+                "rakkib.cli.subprocess.run",
+                side_effect=[sudo_ok, sudo_ok, sudo_ok, sudo_ok],
+            ) as mock_run,
+        ):
+            result = runner.invoke(cli, ["auth", "docker"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        assert "Docker access is prepared" in result.output
+        assert ["sudo", "-n", "usermod", "-aG", "docker", "ubuntu"] in [
+            call.args[0] for call in mock_run.call_args_list
+        ]
+
+    def test_auth_docker_already_ready(self, tmp_path: Path):
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        runner = CliRunner()
+        with (
+            patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
+            patch("rakkib.cli.docker_run", return_value=MagicMock(returncode=0)),
+        ):
+            result = runner.invoke(cli, ["auth", "docker"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        assert "Docker is already usable" in result.output
+
 
 class TestPrivileged:
     def test_privileged_check_root(self, tmp_path: Path, monkeypatch):
@@ -956,9 +1005,10 @@ class TestCheckDocker:
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
             patch("rakkib.cli.os.geteuid", return_value=1000),
             patch("rakkib.cli.getpass.getuser", return_value="ubuntu"),
+            patch("rakkib.cli.sys.stdin.isatty", return_value=True),
             patch(
                 "rakkib.cli.subprocess.run",
-                side_effect=[info_denied, sudo_ok, sudo_ok, sudo_ok],
+                side_effect=[info_denied, sudo_ok, sudo_ok, sudo_ok, sudo_ok],
             ) as mock_run,
         ):
             from rakkib.cli import _check_docker
@@ -981,9 +1031,10 @@ class TestCheckDocker:
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
             patch("rakkib.cli.os.geteuid", return_value=1000),
             patch("rakkib.cli.getpass.getuser", return_value="ubuntu"),
+            patch("rakkib.cli.sys.stdin.isatty", return_value=True),
             patch(
                 "rakkib.cli.subprocess.run",
-                side_effect=[info_ok, compose_denied, sudo_ok, sudo_ok, sudo_ok],
+                side_effect=[info_ok, compose_denied, sudo_ok, sudo_ok, sudo_ok, sudo_ok],
             ),
             patch("rakkib.cli.attempt_fix_compose") as mock_fix_compose,
         ):

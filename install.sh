@@ -272,7 +272,6 @@ Venv:  ${INSTALL_DIR}/.venv
 
 Next steps:
   rakkib init
-  rakkib auth sudo
   rakkib pull
 
 If rakkib is not on PATH yet, run one of:
@@ -281,8 +280,8 @@ If rakkib is not on PATH yet, run one of:
 Or run directly:
   ${HOME}/.local/bin/rakkib init
 
-If Docker access is prepared for a non-root user during pull, open a new shell
-or run 'newgrp docker' before rerunning 'rakkib pull'.
+If Docker access needs repair for a non-root user, run 'rakkib auth docker'.
+After it succeeds, open a new shell or run 'newgrp docker', then rerun 'rakkib pull'.
 
 To uninstall:
   rm -rf ${INSTALL_DIR} ${HOME}/.local/bin/rakkib
