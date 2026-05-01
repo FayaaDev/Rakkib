@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from rakkib.interview import (
+    _build_subdomain_defaults,
     _enforce_rules,
     _get_default,
     _handle_derived,
@@ -633,6 +634,26 @@ class TestHandleRepeat:
         assert empty_state.get("subdomains.nocodb") == "nocodb"
         assert empty_state.get("subdomains.homepage") == "home"
         assert empty_state.get("subdomains.n8n") == "n8n"
+
+
+class TestBuildSubdomainDefaults:
+    def test_only_selected_services_get_default_subdomains(self, empty_state):
+        items = [
+            {"slug": "homepage", "default_subdomain": "home"},
+            {"slug": "n8n", "default_subdomain": "n8n"},
+            {"slug": "hermes", "default_subdomain": "hermes"},
+        ]
+        empty_state.set("foundation_services", ["homepage"])
+        empty_state.set("selected_services", ["n8n"])
+
+        _build_subdomain_defaults(items, empty_state)
+
+        assert empty_state.get("subdomains.homepage") == "home"
+        assert empty_state.get("subdomains.n8n") == "n8n"
+        assert empty_state.get("subdomains.hermes") is None
+        assert empty_state.get("HOMEPAGE_SUBDOMAIN") == "home"
+        assert empty_state.get("N8N_SUBDOMAIN") == "n8n"
+        assert empty_state.get("HERMES_SUBDOMAIN") is None
 
 
 # ---------------------------------------------------------------------------

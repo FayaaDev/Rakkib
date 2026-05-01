@@ -85,9 +85,14 @@ def _service_selection_category(svc: dict[str, Any]) -> str:
     return category or "Other"
 
 
+def _installed_service_ids(state: State) -> set[str]:
+    installed = set(state.get("foundation_services", []) or [])
+    installed.update(state.get("selected_services", []) or [])
+    return installed
+
+
 def _build_add_choices(state: State, registry: dict[str, Any]) -> list[Choice]:
-    current = set(state.get("foundation_services", []) or [])
-    current.update(state.get("selected_services", []) or [])
+    current = _installed_service_ids(state)
 
     choices: list[Choice] = []
     sections = [
@@ -303,10 +308,11 @@ def _print_deployed_urls(state: State, svc_ids: list[str] | None = None) -> None
     subdomains: dict[str, str] = state.get("subdomains", {}) or {}
     if not domain or not subdomains:
         return
+    active_ids = set(svc_ids) if svc_ids is not None else _installed_service_ids(state)
     rows = [
         (svc_id, f"https://{subdomain}.{domain}")
         for svc_id, subdomain in subdomains.items()
-        if subdomain and (svc_ids is None or svc_id in svc_ids)
+        if subdomain and svc_id in active_ids
     ]
     if not rows:
         return

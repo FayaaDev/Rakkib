@@ -199,8 +199,13 @@ def _handle_service_catalog(schema: QuestionSchema, state: State) -> None:
 
 def _build_subdomain_defaults(items: list[dict[str, Any]], state: State) -> None:
     """Set default subdomains for all selected services."""
+    selected_slugs = set(state.get("foundation_services", []) or [])
+    selected_slugs.update(state.get("selected_services", []) or [])
+
     for item in items:
         slug = item["slug"]
+        if slug not in selected_slugs:
+            continue
         default_sub = item.get("default_subdomain", slug)
         state.set(f"subdomains.{slug}", default_sub)
         state.set(subdomain_placeholder_key(slug), default_sub)

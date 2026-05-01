@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from rakkib.cli import _build_add_choices, cli
+from rakkib.cli import _build_add_choices, _print_deployed_urls, cli
 from rakkib.state import State
 
 
@@ -380,6 +380,43 @@ class TestDoctor:
 
         assert result.exit_code == 1
         mock_fix.assert_called_once()
+
+
+class TestPull:
+    def test_pull_only_prints_links_for_installed_services(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text(
+            "confirmed: true\n"
+            "domain: example.com\n"
+            "foundation_services:\n  - homepage\n"
+            "selected_services:\n  - n8n\n"
+            "subdomains:\n"
+            "  homepage: home\n"
+            "  n8n: n8n\n"
+            "  hermes: hermes\n"
+        )
+
+        def fake_run_steps(state: State, repo_dir: Path) -> bool:
+            _print_deployed_urls(state)
+            return True
+
+        with (
+            patch("rakkib.cli._ensure_prereqs", return_value=True),
+            patch("rakkib.cli._run_steps", side_effect=fake_run_steps),
+        ):
+            result = runner.invoke(cli, ["pull"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        assert "Deployed services:" in result.output
+        assert "homepage" in result.output
+        assert "https://home.example.com" in result.output
+        assert "n8n" in result.output
+        assert "https://n8n.example.com" in result.output
+        assert "hermes" not in result.output
+        assert "https://hermes.example.com" not in result.output
 
 
 class TestAdd:
