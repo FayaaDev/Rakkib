@@ -280,7 +280,7 @@ If rakkib is not on PATH yet, run one of:
 Or run directly:
   ${HOME}/.local/bin/rakkib init
 
-If Docker access needs repair for a non-root user, run 'rakkib auth docker'.
+If Docker access needs repair for a non-root user, run 'rakkib auth'.
 After it succeeds, open a new shell or run 'newgrp docker', then rerun 'rakkib pull'.
 
 To uninstall:

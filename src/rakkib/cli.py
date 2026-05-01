@@ -262,7 +262,7 @@ def _docker_access_commands(user: str) -> str:
     )
 
 
-def _prepare_docker_access(user: str) -> str:
+def _prepare_docker_access(user: str, *, validate_sudo: bool = True) -> str:
     if os.geteuid() == 0:
         return "Rakkib is running as root; Docker socket group repair is not needed."
     if sys.platform != "linux":
@@ -270,13 +270,13 @@ def _prepare_docker_access(user: str) -> str:
     if shutil.which("sudo") is None:
         return "sudo is required to prepare Docker access for a non-root user."
 
-    if sys.stdin.isatty() or os.environ.get("RAKKIB_ASSUME_TTY") == "1":
+    if validate_sudo and sys.stdin.isatty():
         console.print("[dim]Rakkib needs sudo once to add this user to the docker group.[/dim]")
         sudo_check = subprocess.run(["sudo", "-v"])
         if sudo_check.returncode != 0:
-            return "Sudo validation failed. Run `rakkib auth docker` from an interactive terminal."
-    else:
-        return "Run `rakkib auth docker` from an interactive terminal to prepare Docker access."
+            return "Sudo validation failed. Run `rakkib auth` from an interactive terminal."
+    elif validate_sudo:
+        return "Run `rakkib auth` from an interactive terminal to prepare Docker access."
 
     commands = [
         ["sudo", "-n", "groupadd", "-f", "docker"],
@@ -300,7 +300,7 @@ def _handle_docker_permission_denied(user: str) -> bool:
         "[yellow]Open a new shell or run `newgrp docker`, then verify with `docker info` "
         "and rerun `rakkib pull`.[/yellow]"
     )
-    console.print("[dim]One-command repair if needed: `rakkib auth docker`[/dim]")
+    console.print("[dim]One-command repair if needed: `rakkib auth`[/dim]")
     console.print(f"[dim]Manual fallback:\n{_docker_access_commands(user)}[/dim]")
     return False
 
@@ -820,51 +820,9 @@ def uninstall() -> None:
 
 
 @cli.command()
-@click.argument("topic", default="sudo")
 @click.pass_context
-def auth(ctx: click.Context, topic: str) -> None:
-    """Validate or repair local authentication prerequisites."""
-    if topic not in ("sudo", "docker", "-h", "--help", ""):
-        console.print(f"[red]Unknown auth topic: {topic}[/red]")
-        ctx.exit(1)
-
-    if topic in ("-h", "--help", ""):
-        click.echo(
-            "Usage: rakkib auth [sudo|docker]\n\n"
-            "sudo   Validates sudo for this terminal with sudo -v.\n"
-            "docker Adds the current/admin user to the docker group, then asks for a new shell."
-        )
-        return
-
-    if topic == "docker":
-        repo_dir = ctx.obj["repo_dir"]
-        state_path = repo_dir / ".fss-state.yaml"
-        state = State.load(state_path)
-        user = _docker_access_user(state)
-        if shutil.which("docker") is None:
-            console.print("[red]Docker is not installed yet. Run `rakkib pull` first.[/red]")
-            ctx.exit(1)
-        try:
-            docker_run(["info"])
-            console.print("[green]Docker is already usable by this shell.[/green]")
-            return
-        except DockerError as exc:
-            if not is_docker_permission_error(exc.stderr or str(exc)):
-                console.print(f"[red]Docker is installed but not usable:[/red] {exc}")
-                ctx.exit(1)
-
-        message = _prepare_docker_access(user)
-        console.print(f"[dim]{message}[/dim]")
-        if not message.startswith("Docker access was prepared"):
-            console.print("[dim]Manual fallback:[/dim]")
-            console.print(f"[dim]{_docker_access_commands(user)}[/dim]")
-            ctx.exit(1)
-        console.print(
-            "[green]Docker access is prepared.[/green] "
-            "Open a new shell or run `newgrp docker`, then run `docker info` and `rakkib pull`."
-        )
-        return
-
+def auth(ctx: click.Context) -> None:
+    """Validate sudo and prepare Docker access when needed."""
     if os.geteuid() == 0:
         console.print("[green]Already running as root; no sudo validation needed.[/green]")
         return
@@ -875,11 +833,37 @@ def auth(ctx: click.Context, topic: str) -> None:
 
     console.print("[dim]Validating sudo for this terminal. Rakkib will not store your password.[/dim]")
     result = subprocess.run(["sudo", "-v"], capture_output=True, text=True)
-    if result.returncode == 0:
-        console.print("[green]Sudo is ready for this terminal according to your system sudo policy.[/green]")
-    else:
+    if result.returncode != 0:
         console.print("[red]Sudo validation failed. Run `sudo -v` in your terminal first.[/red]")
         ctx.exit(1)
+    console.print("[green]Sudo is ready for this terminal according to your system sudo policy.[/green]")
+
+    if shutil.which("docker") is None:
+        return
+
+    repo_dir = ctx.obj["repo_dir"]
+    state_path = repo_dir / ".fss-state.yaml"
+    state = State.load(state_path)
+    user = _docker_access_user(state)
+    try:
+        docker_run(["info"])
+        console.print("[green]Docker is already usable by this shell.[/green]")
+        return
+    except DockerError as exc:
+        if not is_docker_permission_error(exc.stderr or str(exc)):
+            console.print(f"[yellow]Docker is installed but not usable yet:[/yellow] {exc}")
+            return
+
+    message = _prepare_docker_access(user, validate_sudo=False)
+    console.print(f"[dim]{message}[/dim]")
+    if not message.startswith("Docker access was prepared"):
+        console.print("[dim]Manual fallback:[/dim]")
+        console.print(f"[dim]{_docker_access_commands(user)}[/dim]")
+        ctx.exit(1)
+    console.print(
+        "[green]Docker access is prepared.[/green] "
+        "Open a new shell or run `newgrp docker`, then run `docker info` and `rakkib pull`."
+    )
 
 
 @cli.group()

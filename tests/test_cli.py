@@ -817,7 +817,7 @@ class TestAuth:
     def test_auth_root(self, tmp_path: Path, monkeypatch):
         monkeypatch.setattr(os, "geteuid", lambda: 0)
         runner = CliRunner()
-        result = runner.invoke(cli, ["auth", "sudo"])
+        result = runner.invoke(cli, ["auth"])
         assert result.exit_code == 0
         assert "Already running as root" in result.output
 
@@ -827,7 +827,7 @@ class TestAuth:
 
         runner = CliRunner()
         with patch("subprocess.run", return_value=MagicMock(returncode=0)):
-            result = runner.invoke(cli, ["auth", "sudo"])
+            result = runner.invoke(cli, ["auth"])
         assert result.exit_code == 0
         assert "Sudo is ready" in result.output
 
@@ -835,7 +835,7 @@ class TestAuth:
         monkeypatch.setattr(os, "geteuid", lambda: 1000)
         monkeypatch.setattr(shutil, "which", lambda _cmd: None)
         runner = CliRunner()
-        result = runner.invoke(cli, ["auth", "sudo"])
+        result = runner.invoke(cli, ["auth"])
         assert result.exit_code == 1
         assert "sudo is required" in result.output
 
@@ -853,7 +853,6 @@ class TestAuth:
         sudo_ok = MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(os, "geteuid", lambda: 1000)
-        monkeypatch.setenv("RAKKIB_ASSUME_TTY", "1")
         runner = CliRunner()
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
@@ -871,7 +870,7 @@ class TestAuth:
                 side_effect=[sudo_ok, sudo_ok, sudo_ok, sudo_ok],
             ) as mock_run,
         ):
-            result = runner.invoke(cli, ["auth", "docker"], obj={"repo_dir": repo_dir})
+            result = runner.invoke(cli, ["auth"], obj={"repo_dir": repo_dir})
 
         assert result.exit_code == 0
         assert "Docker access is prepared" in result.output
@@ -884,11 +883,13 @@ class TestAuth:
         repo_dir.mkdir()
 
         runner = CliRunner()
+        sudo_ok = MagicMock(returncode=0, stdout="", stderr="")
         with (
             patch("rakkib.cli.shutil.which", return_value="/usr/bin/docker"),
             patch("rakkib.cli.docker_run", return_value=MagicMock(returncode=0)),
+            patch("rakkib.cli.subprocess.run", return_value=sudo_ok),
         ):
-            result = runner.invoke(cli, ["auth", "docker"], obj={"repo_dir": repo_dir})
+            result = runner.invoke(cli, ["auth"], obj={"repo_dir": repo_dir})
 
         assert result.exit_code == 0
         assert "Docker is already usable" in result.output
