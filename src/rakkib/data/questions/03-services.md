@@ -62,6 +62,31 @@ service_catalog:
       numeric_alias: 10
       subdomain_key: openclaw
       default_subdomain: claw
+    - slug: filebrowser
+      label: File Browser
+      numeric_alias: 12
+      subdomain_key: filebrowser
+      default_subdomain: files
+    - slug: it-tools
+      label: IT-Tools
+      numeric_alias: 13
+      subdomain_key: it-tools
+      default_subdomain: tools
+    - slug: cyberchef
+      label: CyberChef
+      numeric_alias: 14
+      subdomain_key: cyberchef
+      default_subdomain: cyberchef
+    - slug: drawio
+      label: Draw.io
+      numeric_alias: 15
+      subdomain_key: drawio
+      default_subdomain: drawio
+    - slug: excalidraw
+      label: Excalidraw
+      numeric_alias: 16
+      subdomain_key: excalidraw
+      default_subdomain: excalidraw
   host_addons:
     - slug: vergo_terminal
       label: VErgo Terminal
@@ -82,14 +107,19 @@ fields:
   - id: optional_services
     type: multi_select
     selection_mode: add_to_empty
-    prompt: "Service categories: type service slugs to add (e.g. `n8n immich`); numeric aliases like `6 8` are also accepted, or press Enter to skip all:"
-    canonical_values: [n8n, immich, transfer, jellyfin, openclaw]
+    prompt: "Service categories: type service slugs to add (e.g. `n8n immich filebrowser`); numeric aliases like `6 8 12` are also accepted, or press Enter to skip all:"
+    canonical_values: [n8n, immich, transfer, jellyfin, openclaw, filebrowser, it-tools, cyberchef, drawio, excalidraw]
     numeric_aliases:
       "6": n8n
       "7": immich
       "8": transfer
       "9": jellyfin
       "10": openclaw
+      "12": filebrowser
+      "13": it-tools
+      "14": cyberchef
+      "15": drawio
+      "16": excalidraw
     records:
       - selected_services
   - id: host_addons
@@ -156,9 +186,18 @@ Media:
 
 File Sharing:
   [ ] 8  transfer.sh   — public file sharing    →  transfer.<domain>
+  [ ] 12 File Browser  — browser file manager   →  files.<domain>
 
 AI:
   [ ] 10 OpenClaw      — AI assistant gateway   →  claw.<domain>
+
+Developer Tools:
+  [ ] 13 IT-Tools      — browser utilities      →  tools.<domain>
+  [ ] 14 CyberChef     — data transformation    →  cyberchef.<domain>
+
+Diagram And Design:
+  [ ] 15 Draw.io       — diagramming app        →  drawio.<domain>
+  [ ] 16 Excalidraw    — sketch whiteboard      →  excalidraw.<domain>
 
 Host Addons:
   [ ] 11 VErgo Terminal — zsh, prompt, completions, CLI UX
@@ -184,7 +223,7 @@ Ask:
 
 Ask:
 
-> "Service categories: type service slugs to add (e.g. `n8n immich`); numeric aliases like `6 8` are also accepted, or press Enter to skip all:"
+> "Service categories: type service slugs to add (e.g. `n8n immich filebrowser`); numeric aliases like `6 8 12` are also accepted, or press Enter to skip all:"
 
 - Parse the response as a space-separated list of canonical service slugs.
 - Accept the numeric aliases shown in the checklist as a convenience input and normalize them to the same canonical service slugs before recording state.
@@ -230,6 +269,11 @@ subdomains:
   transfer: transfer
   jellyfin: jellyfin
   openclaw: claw
+  filebrowser: files
+  it-tools: tools
+  cyberchef: cyberchef
+  drawio: drawio
+  excalidraw: excalidraw
 ```
 
 Record only subdomains for services that are actually selected (foundation or optional).
@@ -246,3 +290,8 @@ During rendering, flatten these values into service placeholders:
 - `subdomains.transfer` -> `{{TRANSFER_SUBDOMAIN}}`
 - `subdomains.jellyfin` -> `{{JELLYFIN_SUBDOMAIN}}`
 - `subdomains.openclaw` -> `{{OPENCLAW_SUBDOMAIN}}`
+- `subdomains.filebrowser` -> `{{FILEBROWSER_SUBDOMAIN}}`
+- `subdomains.it-tools` -> `{{IT_TOOLS_SUBDOMAIN}}`
+- `subdomains.cyberchef` -> `{{CYBERCHEF_SUBDOMAIN}}`
+- `subdomains.drawio` -> `{{DRAWIO_SUBDOMAIN}}`
+- `subdomains.excalidraw` -> `{{EXCALIDRAW_SUBDOMAIN}}`

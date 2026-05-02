@@ -359,6 +359,159 @@ services:
       retries: 3
     notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
 
+  - id: filebrowser
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: filebrowser/filebrowser:latest
+    default_port: 80
+    default_subdomain: files
+    subdomain_key: filebrowser
+    subdomain_placeholder: FILEBROWSER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: filebrowser-public.caddy.tmpl
+    data_dirs:
+      - data/filebrowser/database
+      - data/filebrowser/srv
+    homepage:
+      category: File Sharing
+      name: File Browser
+      description: Browser-based file manager
+      icon: filebrowser.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Browser-based file manager. Optional. Stores managed files under Rakkib's data root."
+
+  - id: it-tools
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/corentinth/it-tools:latest
+    default_port: 80
+    default_subdomain: tools
+    subdomain_key: it-tools
+    subdomain_placeholder: IT_TOOLS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: it-tools-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: IT-Tools
+      description: Handy browser-based developer utilities
+      icon: it-tools.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Static developer utility collection. Optional."
+
+  - id: cyberchef
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/gchq/cyberchef:latest
+    default_port: 80
+    default_subdomain: cyberchef
+    subdomain_key: cyberchef
+    subdomain_placeholder: CYBERCHEF_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: cyberchef-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: CyberChef
+      description: Browser-based data transformation toolkit
+      icon: cyberchef.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Static data transformation toolkit. Optional."
+
+  - id: drawio
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jgraph/drawio:latest
+    default_port: 8080
+    default_subdomain: drawio
+    subdomain_key: drawio
+    subdomain_placeholder: DRAWIO_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: drawio-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Draw.io
+      description: Diagramming and whiteboarding
+      icon: draw-io.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Diagramming and whiteboarding app. Optional."
+
+  - id: excalidraw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: excalidraw/excalidraw:latest
+    default_port: 80
+    default_subdomain: excalidraw
+    subdomain_key: excalidraw
+    subdomain_placeholder: EXCALIDRAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: excalidraw-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Excalidraw
+      description: Virtual whiteboard for sketching diagrams
+      icon: excalidraw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Virtual whiteboard for sketching diagrams. Optional."
+
   - id: openclaw
     state_bucket: selected_services
     required: false

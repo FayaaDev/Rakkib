@@ -1,0 +1,11 @@
+services:
+  drawio:
+    image: jgraph/drawio:latest
+    container_name: drawio
+    restart: unless-stopped
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

@@ -1,0 +1,5 @@
+	# File Browser file manager
+	@filebrowser host {{FILEBROWSER_SUBDOMAIN}}.{{DOMAIN}}
+	handle @filebrowser {
+		reverse_proxy filebrowser:80
+	}

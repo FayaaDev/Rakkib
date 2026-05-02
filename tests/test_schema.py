@@ -101,6 +101,11 @@ def test_phase_3_service_catalog_and_rules():
         "transfer",
         "jellyfin",
         "openclaw",
+        "filebrowser",
+        "it-tools",
+        "cyberchef",
+        "drawio",
+        "excalidraw",
     ]
 
     assert len(schema.rules) == 1
@@ -117,6 +122,7 @@ def test_phase_3_service_catalog_and_rules():
     assert optional.selection_mode == "add_to_empty"
     assert optional.records == ["selected_services"]
     assert optional.numeric_aliases["10"] == "openclaw"
+    assert optional.numeric_aliases["16"] == "excalidraw"
 
     subdomain = field_map["service_subdomain"]
     assert subdomain.type == "text"
