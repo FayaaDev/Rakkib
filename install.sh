@@ -74,6 +74,10 @@ parse_args() {
 
 confirm_root() {
   if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    if [[ ! -t 0 ]]; then
+      warn "running Rakkib as root in non-interactive mode; continuing because stdin is not a terminal."
+      return
+    fi
     local answer
     [[ -e /dev/tty ]] && printf 'WARNING: You are running Rakkib as root.\n' > /dev/tty
     _prompt answer 'Are you sure you want to continue? (y/N) ' || exit 1
