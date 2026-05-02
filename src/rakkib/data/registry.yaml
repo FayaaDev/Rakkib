@@ -393,6 +393,9 @@ services:
       interval: 60
       timeout: 10
       retries: 3
+    smoke:
+      path: /
+      expected_text: File Browser
     notes: "Browser-based file manager. Optional. Stores managed files under Rakkib's data root."
 
   - id: it-tools
@@ -423,6 +426,9 @@ services:
       interval: 60
       timeout: 10
       retries: 3
+    smoke:
+      path: /
+      expected_text: IT Tools
     notes: "Static developer utility collection. Optional."
 
   - id: cyberchef
@@ -453,6 +459,9 @@ services:
       interval: 60
       timeout: 10
       retries: 3
+    smoke:
+      path: /
+      expected_text: CyberChef
     notes: "Static data transformation toolkit. Optional."
 
   - id: drawio
@@ -483,6 +492,9 @@ services:
       interval: 60
       timeout: 10
       retries: 3
+    smoke:
+      path: /
+      expected_text: draw.io
     notes: "Diagramming and whiteboarding app. Optional."
 
   - id: excalidraw
@@ -513,6 +525,9 @@ services:
       interval: 60
       timeout: 10
       retries: 3
+    smoke:
+      path: /
+      expected_text: Excalidraw
     notes: "Virtual whiteboard for sketching diagrams. Optional."
 
   - id: openclaw

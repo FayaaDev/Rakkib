@@ -22,6 +22,12 @@ Validation must follow the full bare-metal flow:
 - `rakkib init`
 - `rakkib pull`
 
+For service-by-service wave testing after the server is initialized, avoid redeploying unrelated selected services:
+- deploy the target with `rakkib pull --service <service>` or `rakkib add <service> --yes`
+- verify it with `rakkib smoke <service>`
+- confirm container/host status and logs before moving to the next service
+- reserve full `rakkib pull` for whole-server validation; it skips already-running selected services but still runs global setup
+
 2. Mandatory skill usage
 
 You MUST use the project skill `rakkib-add-service` for all service additions:
@@ -37,8 +43,9 @@ Do not hand-roll the workflow; the skill is the contract for registry fields, te
   - hooks only when necessary in `src/rakkib/hooks/services.py`
 - Avoid hardcoded per-service branches in Python unless the behavior cannot be expressed via registry/templates/hooks.
 - A service is only "done" if it works with:
-  - `rakkib pull`
-  - `rakkib add` (select + deselect)
+  - `rakkib pull --service <service>` and full `rakkib pull`
+  - `rakkib add <service> --yes` plus `rakkib add` deselect/removal behavior
+  - `rakkib smoke <service>` when it is browser-facing
   - destructive removal on deselect (containers, rendered config, data dirs, generated artifacts, Postgres db/role when declared)
 
 ## How To Handle User Requests

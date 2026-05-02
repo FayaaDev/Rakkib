@@ -372,6 +372,51 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
     _run_named_hooks(hooks.get("post_start", []), POST_START_HOOKS, state, svc, repo, data_root, log_path, registry)
 
 
+def _host_service_responds(svc: dict) -> bool:
+    port = svc.get("default_port")
+    if not port or not svc.get("host_port"):
+        return False
+
+    path = str((svc.get("monitoring") or {}).get("path") or "/")
+    path = path if path.startswith("/") else f"/{path}"
+    result = subprocess.run(
+        ["curl", "-sf", f"http://127.0.0.1:{port}{path}", "-o", "/dev/null"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    return result.returncode == 0
+
+
+def _container_usable(container_name: str) -> bool:
+    result = docker_run(
+        [
+            "inspect",
+            "-f",
+            "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}",
+            container_name,
+        ],
+        check=False,
+    )
+    status, _, health = result.stdout.strip().partition(" ")
+    if status != "running":
+        return False
+    return health.strip() not in {"starting", "unhealthy"}
+
+
+def service_is_installed(state: State, svc: dict, data_root: Path | None = None) -> bool:
+    """Return true when a selected service already has a usable deployment."""
+    data_root = data_root or Path(state.get("data_root", "/srv"))
+
+    if svc.get("host_service"):
+        return _host_service_responds(svc)
+
+    svc_id = svc["id"]
+    container_name = svc.get("container_name", svc_id)
+    compose_path = data_root / "docker" / svc_id / "docker-compose.yml"
+    return compose_path.exists() and _container_usable(container_name)
+
+
 def run(state: State) -> None:
     repo = _repo_dir()
     data_root = Path(state.get("data_root", "/srv"))
@@ -381,6 +426,9 @@ def run(state: State) -> None:
     services = selected_service_defs(state, registry)
 
     for svc in services:
+        if service_is_installed(state, svc, data_root):
+            console.print(f"[dim]Skipping {svc['id']} — already installed and running.[/dim]")
+            continue
         _deploy_single_service(state, svc, repo, data_root)
 
     # --- Reload Caddy after all services -------------------------------------
@@ -403,6 +451,47 @@ def run_single_service(state: State, svc_id: str) -> None:
     _deploy_single_service(state, svc, repo, data_root)
     _reload_caddy(data_root)
     sync_shared_artifacts(state, repo, data_root, registry)
+
+
+def smoke_check(state: State, svc_id: str) -> VerificationResult:
+    """Fetch a service's public URL and assert its registry smoke marker is present."""
+    registry = _load_registry()
+    by_id = {s["id"]: s for s in registry["services"]}
+    if svc_id not in by_id:
+        return VerificationResult.failure("services", f"Service {svc_id} not found in registry")
+
+    svc = by_id[svc_id]
+    smoke = svc.get("smoke") or {}
+    if not smoke:
+        return VerificationResult.success("services", f"No smoke check declared for {svc_id}")
+
+    domain = state.get("domain")
+    subdomain = (state.get("subdomains", {}) or {}).get(svc_id)
+    if not domain or not subdomain:
+        return VerificationResult.failure("services", f"No public URL recorded for {svc_id}")
+
+    path = str(smoke.get("path") or "/")
+    path = path if path.startswith("/") else f"/{path}"
+    url = f"https://{subdomain}.{domain}{path}"
+    timeout = str(smoke.get("timeout", 20))
+    result = subprocess.run(
+        ["curl", "-fsSL", "--max-time", timeout, url],
+        capture_output=True,
+        text=True,
+        timeout=int(timeout) + 5,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "curl failed"
+        return VerificationResult.failure("services", f"Smoke check failed for {svc_id} at {url}: {detail}")
+
+    expected = smoke.get("expected_text")
+    if expected and expected not in result.stdout:
+        return VerificationResult.failure(
+            "services",
+            f"Smoke check for {svc_id} did not find expected text {expected!r} at {url}",
+        )
+
+    return VerificationResult.success("services", f"Smoke check passed for {svc_id} at {url}")
 
 
 # ---------------------------------------------------------------------------

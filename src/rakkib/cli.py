@@ -445,6 +445,79 @@ def _run_steps(state: State, repo_dir: Path) -> bool:
     return True
 
 
+def _run_pre_service_steps(state: State) -> bool:
+    """Run setup steps needed before deploying one selected service."""
+    for step_name, module_path in STEP_MODULES:
+        if step_name == "services":
+            break
+
+        console.print(f"[bold green]Step {step_name}[/bold green]")
+        try:
+            module = __import__(module_path, fromlist=["run", "verify"])
+            run_fn = getattr(module, "run", None)
+            verify_fn = getattr(module, "verify", None)
+            if run_fn is not None:
+                run_fn(state)
+            if verify_fn is not None:
+                result = verify_fn(state)
+                if not result.ok:
+                    console.print(f"[bold red]  Step {step_name} verify failed:[/bold red] {result.message}")
+                    return False
+                console.print(f"[dim]  Step {step_name} verify passed[/dim]")
+        except Exception as exc:
+            console.print(f"[bold red]  Step {step_name} failed:[/bold red] {exc}")
+            return False
+
+    return True
+
+
+def _select_service_for_deploy(state: State, registry: dict[str, Any], service: str) -> dict[str, Any] | None:
+    by_id = {svc["id"]: svc for svc in registry["services"]}
+    svc = by_id.get(service)
+    if svc is None:
+        console.print(f"[bold red]Error:[/bold red] Unknown service '{service}'.")
+        return None
+    if svc.get("state_bucket") == "always":
+        console.print(f"[bold red]Error:[/bold red] '{service}' is an always-installed service; use full `rakkib pull`.")
+        return None
+
+    selected_ids = _installed_service_ids(state)
+    selected_ids.add(service)
+    dependency_errors = _validate_service_dependencies(selected_ids, registry)
+    if dependency_errors:
+        console.print("[bold red]Error:[/bold red] Invalid service selection:")
+        for error in dependency_errors:
+            console.print(f"  - {error}")
+        return None
+
+    _apply_service_selection(state, registry, selected_ids)
+    services_step._generate_missing_secrets(state)
+    return svc
+
+
+def _run_service_pull(state: State, state_path: Path, service: str) -> bool:
+    registry = services_step._load_registry()
+    svc = _select_service_for_deploy(state, registry, service)
+    if svc is None:
+        return False
+
+    state.save(state_path)
+    if not _run_pre_service_steps(state):
+        return False
+
+    console.print(f"[bold green]Step services:{service}[/bold green]")
+    try:
+        services_step.run_single_service(state, service)
+    except Exception as exc:
+        console.print(f"[bold red]  Service {service} failed:[/bold red] {exc}")
+        return False
+
+    state.save(state_path)
+    _print_deployed_urls(state, [service])
+    console.print(f"[bold green]Service {service} deployed successfully.[/bold green]")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -484,8 +557,9 @@ def init(ctx: click.Context) -> None:
 
 
 @cli.command()
+@click.option("--service", "service", help="Deploy only one registry service and skip the full services pass.")
 @click.pass_context
-def pull(ctx: click.Context) -> None:
+def pull(ctx: click.Context, service: str | None) -> None:
     """Install prerequisites and run all setup steps.
 
     Requires a confirmed state from `rakkib init`.
@@ -506,7 +580,12 @@ def pull(ctx: click.Context) -> None:
     if not _ensure_prereqs(state):
         return
 
-    _run_steps(state, repo_dir)
+    if service:
+        ok = _run_service_pull(state, state_path, service)
+    else:
+        ok = _run_steps(state, repo_dir)
+    if not ok:
+        ctx.exit(1)
 
 
 @cli.command()
@@ -635,9 +714,10 @@ def status(ctx: click.Context) -> None:
 
 
 @cli.command()
+@click.option("--yes", is_flag=True, help="Apply service changes without the confirmation prompt.")
 @click.argument("service", required=False)
 @click.pass_context
-def add(ctx: click.Context, service: str | None) -> None:
+def add(ctx: click.Context, service: str | None, yes: bool) -> None:
     """Sync deployed services against the registry."""
     console.print("[bold green]Rakkib add[/bold green]")
 
@@ -676,9 +756,11 @@ def add(ctx: click.Context, service: str | None) -> None:
 
     if added or removed:
         _summarize_service_diff(added, removed)
-        if not prompt_confirm("Apply these service changes?", default=False):
+        if not yes and not prompt_confirm("Apply these service changes?", default=False):
             console.print("[yellow]Aborted.[/yellow]")
             return
+        if yes:
+            console.print("[dim]Confirmation skipped because --yes was provided.[/dim]")
     else:
         console.print("[yellow]No selection changes; refreshing selected services.[/yellow]")
 
@@ -718,6 +800,24 @@ def add(ctx: click.Context, service: str | None) -> None:
         deployed_ids = list(added)
     if deployed_ids:
         _print_deployed_urls(state, deployed_ids)
+
+
+@cli.command()
+@click.argument("service")
+@click.pass_context
+def smoke(ctx: click.Context, service: str) -> None:
+    """Fetch a deployed service URL and verify its registry smoke marker."""
+    repo_dir = ctx.obj["repo_dir"]
+    state_path = repo_dir / ".fss-state.yaml"
+    state = State.load(state_path)
+
+    result = services_step.smoke_check(state, service)
+    if result.ok:
+        console.print(f"[green]✓[/green] {result.message}")
+        return
+
+    console.print(f"[bold red]✗[/bold red] {result.message}")
+    ctx.exit(1)
 
 
 @cli.command()

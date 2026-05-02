@@ -19,6 +19,12 @@ Minimum validation steps:
 2. `rakkib init`
 3. `rakkib pull`
 
+For iterative wave validation after the server is initialized, test one service at a time:
+1. `rakkib pull --service <service>` or `rakkib add <service> --yes`
+2. Check the service container/host process and logs
+3. `rakkib smoke <service>` for browser-facing services
+4. Move to the next service only after the public HTML smoke check passes
+
 Do not treat local runs as proof.
 
 ## Required Implementation Shape
@@ -39,4 +45,5 @@ Do not treat local runs as proof.
 - Service appears in `rakkib add` selection and can be selected.
 - `rakkib pull` completes with the service running.
 - Caddy route works as expected (service reachable via its subdomain).
+- Browser-facing services declare registry `smoke.path` and `smoke.expected_text`, and `rakkib smoke <service>` passes.
 - Deselect/remove path works (containers down, artifacts removed, Postgres resources dropped if declared).

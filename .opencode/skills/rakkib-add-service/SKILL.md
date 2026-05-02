@@ -10,7 +10,7 @@ metadata:
 
 ## Goal
 
-Service is complete only when it works cleanly with `rakkib init`, `rakkib pull`, `rakkib add <service>`, and the Phase 3 interview catalog (`src/rakkib/data/questions/03-services.md`). Do not add hardcoded `if svc_id == ...` branches unless behavior cannot be expressed declaratively.
+Service is complete only when it works cleanly with `rakkib init`, `rakkib pull`, `rakkib pull --service <id>`, `rakkib add <service> --yes`, `rakkib smoke <service>`, and the Phase 3 interview catalog (`src/rakkib/data/questions/03-services.md`). Do not add hardcoded `if svc_id == ...` branches unless behavior cannot be expressed declaratively.
 
 ## Read First
 
@@ -58,7 +58,7 @@ Always needed:
 - `src/rakkib/data/templates/docker/<id>/.env.example`
 - `src/rakkib/data/templates/caddy/routes/<id>.caddy.tmpl` (+ `<id>-public.caddy.tmpl` if needed)
 
-Add only when required: `extra_templates`, `hooks`, `postgres`, `homepage`, `data_dirs`, `chown`, `env_preserve_keys`, `conditional_secrets`
+Add only when required: `extra_templates`, `hooks`, `postgres`, `homepage`, `data_dirs`, `chown`, `env_preserve_keys`, `conditional_secrets`, `smoke`
 
 ## Template Safety
 
@@ -71,7 +71,20 @@ Add only when required: `extra_templates`, `hooks`, `postgres`, `homepage`, `dat
 
 ## Registry Fields Checklist
 
-`id` · `state_bucket` · `required`/`optional` · `foundation` (explicit bool) · `image` · `container_name` · `default_port` · `host_service` · `host_port` · `default_subdomain` · `subdomain_key` · `subdomain_placeholder` · `depends_on` · `caddy` (`template`, `public_template`) · `env_keys` · `secrets` · `conditional_secrets` · `postgres` · `monitoring` (`enabled`, `type`, `target`, `path`, `port`, `interval`, `timeout`, `retries`, `hostname`, `custom_url`, `name`) · `homepage` · `data_dirs` · `chown` · `extra_templates` · `hooks` · `env_preserve_keys` · `notes`
+`id` · `state_bucket` · `required`/`optional` · `foundation` (explicit bool) · `image` · `container_name` · `default_port` · `host_service` · `host_port` · `default_subdomain` · `subdomain_key` · `subdomain_placeholder` · `depends_on` · `caddy` (`template`, `public_template`) · `env_keys` · `secrets` · `conditional_secrets` · `postgres` · `monitoring` (`enabled`, `type`, `target`, `path`, `port`, `interval`, `timeout`, `retries`, `hostname`, `custom_url`, `name`) · `homepage` · `data_dirs` · `chown` · `extra_templates` · `hooks` · `env_preserve_keys` · `smoke` (`path`, `expected_text`, optional `timeout`) · `notes`
+
+### Bare-Metal Validation Flow
+
+Validate one new service at a time. Use non-interactive commands whenever possible:
+
+1. Install/update the test server from `main`.
+2. Run `rakkib init` when state is missing or intentionally reset.
+3. Deploy only the target service with `rakkib pull --service <id>` or `rakkib add <id> --yes`.
+4. Confirm the container/host service is running.
+5. Run `rakkib smoke <id>` and verify the public URL returns the expected app HTML.
+6. Only then move to the next service.
+
+Avoid full `rakkib pull` during service-by-service testing unless intentionally validating the whole selected server. Full pull skips already-running selected services, but it still runs global setup and can expose unrelated state on a reused test server.
 
 ## Interview Catalog (`03-services.md`)
 
@@ -95,6 +108,9 @@ Add only when required: `extra_templates`, `hooks`, `postgres`, `homepage`, `dat
 10. Update Phase 3 service catalog tests when services are added or reordered
 11. Update `test_registry_consistency.py` only if existing assertions become insufficient
 12. Update fixture/snapshot expectations if rendered outputs change materially
+13. Declare `smoke.path` and `smoke.expected_text` for browser-facing services so `rakkib smoke <id>` can verify the public page with a GET request
+14. For app+volume containers, inspect the image runtime user and add registry `chown` for writable persistent directories when needed
+15. Use `rakkib add <id> --yes` for non-interactive add-path validation, then verify deselection/removal separately through the checkbox UI or explicit removal workflow
 
 ## Done When
 
