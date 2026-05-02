@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Rakkib",
+  "project_id": "8c8472c6-fb16-4740-a59c-31829a1582b5"
+}

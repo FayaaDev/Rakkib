@@ -6,7 +6,6 @@
 *.db
 
 # Beads tracking files
-.beads/
 .beads-credential-key
 
 # Python
