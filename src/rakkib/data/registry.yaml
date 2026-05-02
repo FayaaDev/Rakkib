@@ -377,6 +377,9 @@ services:
     data_dirs:
       - data/filebrowser/database
       - data/filebrowser/srv
+    chown:
+      uid: 1000
+      gid: 1000
     homepage:
       category: File Sharing
       name: File Browser
