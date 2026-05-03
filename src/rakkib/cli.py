@@ -715,11 +715,20 @@ def status(ctx: click.Context) -> None:
 
 @cli.command()
 @click.option("--yes", is_flag=True, help="Apply service changes without the confirmation prompt.")
+@click.option("--service", "service_option", help="Add one registry service without the checkbox prompt.")
 @click.argument("service", required=False)
 @click.pass_context
-def add(ctx: click.Context, service: str | None, yes: bool) -> None:
+def add(ctx: click.Context, service: str | None, service_option: str | None, yes: bool) -> None:
     """Sync deployed services against the registry."""
     console.print("[bold green]Rakkib add[/bold green]")
+
+    if service and service_option and service != service_option:
+        console.print(
+            "[bold red]Error:[/bold red] Provide the service either as an argument "
+            "or with --service, not both."
+        )
+        sys.exit(1)
+    service = service_option or service
 
     repo_dir = ctx.obj["repo_dir"]
     state_path = repo_dir / ".fss-state.yaml"

@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 REPO_URL="${RAKKIB_REPO:-https://github.com/FayaaDev/Rakkib.git}"
-BRANCH="${RAKKIB_BRANCH:-main}"
+BRANCH="${RAKKIB_BRANCH:-runtime}"
 
 log()  { printf '==> %s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
@@ -56,7 +56,7 @@ venv, installs the rakkib CLI into it, and links it onto PATH.
 Environment overrides:
   RAKKIB_DIR       target checkout path   (default: $HOME/Rakkib)
   RAKKIB_REPO      git repo URL           (default: https://github.com/FayaaDev/Rakkib.git)
-  RAKKIB_BRANCH    git branch             (default: main)
+  RAKKIB_BRANCH    git branch             (default: runtime)
 USAGE
 }
 
@@ -208,7 +208,7 @@ prepare_repo() {
 
   mkdir -p "$(dirname "$INSTALL_DIR")"
   log "Cloning ${REPO_URL} into ${INSTALL_DIR}"
-  git clone --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+  git clone --depth 1 --single-branch --no-tags --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
 }
 
 ensure_venv_install() {

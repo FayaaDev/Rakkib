@@ -9,6 +9,14 @@ Dont debug and run tests on current machine, the app is being tested on a bare m
 Solo one-line command:
 curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash
 
+## Runtime branch
+
+- `main` is the development branch and still hosts the public `install.sh` used by the curl-pipe command.
+- `runtime` is an orphan branch used as the slim install snapshot. It intentionally has no shared history with `main` and should contain only `.gitignore`, `README.md`, `install.sh`, `pyproject.toml`, and `src/rakkib/**`.
+- The installer defaults `RAKKIB_BRANCH` to `runtime`, so the public curl command fetches `install.sh` from `main` but clones the slim `runtime` tree onto target hosts.
+- When `install.sh`, `pyproject.toml`, or `src/rakkib/**` changes on `main`, mirror those runtime files to the orphan `runtime` branch and push it. Do not copy dev-only files such as `.beads/`, `.opencode/`, `docs/`, `services/`, `tests/`, or `web/`.
+- Use `RAKKIB_BRANCH=main` only when intentionally installing the full development tree.
+
 ## Guidelines
 
 - **`install.sh` is sacred.** Any change must pass on a fresh Ubuntu 24.04 server. Test by running `bash install.sh` in a clean checkout.

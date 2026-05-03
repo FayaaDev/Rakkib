@@ -17,16 +17,16 @@ Run deployments on the test server (not this machine):
 
 `sshpass -p 'ub' ssh -o StrictHostKeyChecking=accept-new root@174.138.183.153`
 
-Validation must follow the full bare-metal flow:
+Validation must follow the service-targeted bare-metal flow:
 - `curl -fsSL https://raw.githubusercontent.com/FayaaDev/Rakkib/main/install.sh | bash`
-- `rakkib init`
-- `rakkib pull`
+- deploy only the target service with `rakkib add <service> --yes` or `rakkib add --service <service> --yes`
+- continue with the service-specific verification steps below
 
-For service-by-service wave testing after the server is initialized, avoid redeploying unrelated selected services:
-- deploy the target with `rakkib pull --service <service>` or `rakkib add <service> --yes`
+Do not run `rakkib init` or full `rakkib pull` for normal new-service validation. Avoid redeploying unrelated selected services:
+- deploy the target with `rakkib add <service> --yes` or `rakkib add --service <service> --yes`
 - verify it with `rakkib smoke <service>`
 - confirm container/host status and logs before moving to the next service
-- reserve full `rakkib pull` for whole-server validation; it skips already-running selected services but still runs global setup
+- reserve full `rakkib pull` only for explicit whole-server validation; it skips already-running selected services but still runs global setup
 
 2. Mandatory skill usage
 
@@ -43,8 +43,8 @@ Do not hand-roll the workflow; the skill is the contract for registry fields, te
   - hooks only when necessary in `src/rakkib/hooks/services.py`
 - Avoid hardcoded per-service branches in Python unless the behavior cannot be expressed via registry/templates/hooks.
 - A service is only "done" if it works with:
-  - `rakkib pull --service <service>` and full `rakkib pull`
-  - `rakkib add <service> --yes` plus `rakkib add` deselect/removal behavior
+  - installer-first validation followed by `rakkib add <service> --yes` or `rakkib add --service <service> --yes`
+  - `rakkib add` deselect/removal behavior
   - `rakkib smoke <service>` when it is browser-facing
   - destructive removal on deselect (containers, rendered config, data dirs, generated artifacts, Postgres db/role when declared)
 
