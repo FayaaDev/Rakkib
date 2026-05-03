@@ -607,6 +607,52 @@ class TestAdd:
         assert saved_state.get("selected_services") == ["openclaw"]
         assert saved_state.get("host_gateway") == "172.18.0.1"
 
+    def test_add_service_option_adds_service_without_checkbox(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        state_file = repo_dir / ".fss-state.yaml"
+        state_file.write_text(
+            "platform: linux\n"
+            "foundation_services:\n  - homepage\n"
+            "selected_services: []\n"
+        )
+
+        with (
+            patch("rakkib.steps.services._load_registry") as mock_reg,
+            patch("rakkib.cli.prompt_checkbox") as mock_checkbox,
+            patch("rakkib.cli.prompt_confirm", return_value=True),
+            patch("rakkib.steps.services._generate_missing_secrets"),
+            patch("rakkib.steps.postgres.run"),
+            patch("rakkib.steps.services.run_single_service") as mock_run_single,
+        ):
+            mock_reg.return_value = self._make_registry()
+            result = runner.invoke(cli, ["add", "--service", "openclaw"], obj={"repo_dir": repo_dir})
+
+        assert result.exit_code == 0
+        mock_checkbox.assert_not_called()
+        mock_run_single.assert_called_once()
+        assert mock_run_single.call_args.args[1] == "openclaw"
+        saved_state = State.load(state_file)
+        assert saved_state.get("foundation_services") == ["homepage"]
+        assert saved_state.get("selected_services") == ["openclaw"]
+        assert saved_state.get("host_gateway") == "172.18.0.1"
+
+    def test_add_rejects_conflicting_service_argument_and_option(self, tmp_path: Path):
+        runner = CliRunner()
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        (repo_dir / ".fss-state.yaml").write_text("confirmed: true\n")
+
+        result = runner.invoke(
+            cli,
+            ["add", "openclaw", "--service", "n8n"],
+            obj={"repo_dir": repo_dir},
+        )
+
+        assert result.exit_code == 1
+        assert "Provide the service either as an argument or with --service" in result.output
+
     def test_add_immich_argument_runs_single_service(self, tmp_path: Path):
         runner = CliRunner()
         repo_dir = tmp_path / "repo"
