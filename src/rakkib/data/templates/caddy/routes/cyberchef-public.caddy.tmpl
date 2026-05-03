@@ -1,0 +1,5 @@
+	# CyberChef data transformation toolkit
+	@cyberchef host {{CYBERCHEF_SUBDOMAIN}}.{{DOMAIN}}
+	handle @cyberchef {
+		reverse_proxy cyberchef:80
+	}

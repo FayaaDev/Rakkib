@@ -1,0 +1,13 @@
+	import /etc/caddy/routes/*.caddy
+
+	# All subdomains
+	@subdomains host *.{{DOMAIN}}
+	handle @subdomains {
+		respond "Rakkib route is configured for {http.request.host}" 200
+	}
+
+	# Fallback
+	handle {
+		respond "Rakkib Caddy is running" 200
+	}
+}

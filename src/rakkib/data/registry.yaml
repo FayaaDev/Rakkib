@@ -1,0 +1,569 @@
+services:
+  - id: caddy
+    state_bucket: always
+    required: true
+    image: caddy:2
+    default_port: 80
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    notes: "Reverse proxy. Always installed."
+
+  - id: cloudflared
+    state_bucket: always
+    required: true
+    image: cloudflare/cloudflared:latest
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    env_preserve_keys:
+      - TUNNEL_UUID
+      - CLOUDFLARED_METRICS_PORT
+      - ADMIN_UID
+      - ADMIN_GID
+    depends_on: []
+    host_service: false
+    notes: "Cloudflare tunnel. Always installed. Step 3 may pause for guided Cloudflare login approval."
+
+  - id: postgres
+    state_bucket: always
+    required: true
+    image: pgvector/pgvector:pg16
+    default_port: 5432
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys:
+      - POSTGRES_PASSWORD
+    depends_on: []
+    host_service: false
+    host_port: true
+    secrets:
+      POSTGRES_PASSWORD:
+        factory: password
+    notes: "Single postgres instance serves all services. Port bound to 127.0.0.1 only."
+
+  # --- Foundation Bundle (recommended, presented as a pre-checked group) ---
+
+  - id: nocodb
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: nocodb/nocodb:latest
+    default_port: 8080
+    default_subdomain: nocodb
+    subdomain_key: nocodb
+    subdomain_placeholder: NOCODB_SUBDOMAIN
+    env_keys:
+      - NOCODB_DB_PASS
+      - ADMIN_EMAIL
+      - NOCODB_ADMIN_PASS
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    caddy:
+      template: nocodb.caddy.tmpl
+    secrets:
+      NOCODB_ADMIN_PASS:
+        factory: password
+      NOCODB_DB_PASS:
+        factory: password
+    postgres:
+      role: nocodb
+      db: nocodb_db
+      password_key: NOCODB_DB_PASS
+      display_name: NocoDB
+    homepage:
+      category: Infrastructure
+      name: NocoDB
+      description: No-code database UI
+      icon: nocodb.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "No-code database UI. Foundation bundle service."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+
+  - id: homepage
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: ghcr.io/gethomepage/homepage:latest
+    default_port: 3000
+    default_subdomain: home
+    subdomain_key: homepage
+    subdomain_placeholder: HOMEPAGE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: homepage-public.caddy.tmpl
+    data_dirs:
+      - data/homepage/config
+    hooks:
+      post_render:
+        - homepage_services_yaml
+    notes: "Service dashboard. Foundation bundle service. services.yaml generated from selected service list."
+
+  - id: uptime-kuma
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/uptime-kuma:latest
+    default_port: 3001
+    default_subdomain: status
+    subdomain_key: uptime-kuma
+    subdomain_placeholder: UPTIME_KUMA_SUBDOMAIN
+    env_keys:
+      - UPTIME_KUMA_ADMIN_USER
+      - UPTIME_KUMA_ADMIN_PASS
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: uptime-kuma-public.caddy.tmpl
+    secrets:
+      UPTIME_KUMA_ADMIN_USER:
+        value: admin
+      UPTIME_KUMA_ADMIN_PASS:
+        factory: password
+    homepage:
+      category: Infrastructure
+      name: Uptime Kuma
+      description: Uptime monitoring
+      icon: uptime-kuma.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Uptime monitoring. Foundation bundle service."
+
+  - id: dockge
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/dockge:latest
+    default_port: 5001
+    default_subdomain: dockge
+    subdomain_key: dockge
+    subdomain_placeholder: DOCKGE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: dockge-public.caddy.tmpl
+    homepage:
+      category: Infrastructure
+      name: Dockge
+      description: Compose manager
+      icon: docker.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
+
+  # --- Optional Services (Tier 1) ---
+
+  - id: n8n
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: n8nio/n8n:latest
+    default_port: 5678
+    default_subdomain: n8n
+    subdomain_key: n8n
+    subdomain_placeholder: N8N_SUBDOMAIN
+    env_keys:
+      - N8N_DB_PASS
+      - N8N_ENCRYPTION_KEY
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    caddy:
+      template: n8n-public.caddy.tmpl
+    env_preserve_keys:
+      - N8N_ENCRYPTION_KEY
+    data_dirs:
+      - data/n8n/n8n
+      - data/n8n/n8nworkflows
+    chown:
+      uid: 1000
+      gid: 1000
+    secrets:
+      N8N_DB_PASS:
+        factory: password
+    conditional_secrets:
+      - when: secrets.n8n_mode != migrate
+        keys:
+          N8N_ENCRYPTION_KEY:
+            factory: password
+            length: 32
+    postgres:
+      role: n8n
+      db: n8n_db
+      password_key: N8N_DB_PASS
+      display_name: n8n
+    homepage:
+      category: Automation
+      name: n8n
+      description: Workflow automation
+      icon: n8n.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+
+  - id: immich
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich_server
+    default_port: 2283
+    default_subdomain: immich
+    subdomain_key: immich
+    subdomain_placeholder: IMMICH_SUBDOMAIN
+    env_keys:
+      - IMMICH_DB_PASSWORD
+      - IMMICH_VERSION
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: immich-public.caddy.tmpl
+    env_preserve_keys:
+      - IMMICH_DB_PASSWORD
+      - IMMICH_VERSION
+    data_dirs:
+      - data/immich/library
+      - data/immich/postgres
+    secrets:
+      IMMICH_DB_PASSWORD:
+        factory: password
+        length: 32
+      IMMICH_VERSION:
+        value: release
+    homepage:
+      category: Media
+      name: Immich
+      description: Photo and video library
+      icon: immich.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Photo and video library. Optional. CPU-only v1 install using Immich's dedicated Postgres and Valkey services."
+
+  - id: transfer
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: dutchcoders/transfer.sh:latest-noroot
+    default_port: 8080
+    default_subdomain: transfer
+    subdomain_key: transfer
+    subdomain_placeholder: TRANSFER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    caddy:
+      template: transfer.caddy.tmpl
+    data_dirs:
+      - data/transfer
+    chown:
+      uid: 5000
+      gid: 5000
+    homepage:
+      category: File Sharing
+      name: transfer.sh
+      description: Public unauthenticated file sharing
+      icon: transfer-sh.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Self-hosted transfer.sh file sharing. Optional. Public unauthenticated upload endpoint by design; use only when the owner accepts the abuse risk. Stores uploads on the local filesystem."
+
+  - id: jellyfin
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jellyfin/jellyfin:latest
+    default_port: 8096
+    default_subdomain: jellyfin
+    subdomain_key: jellyfin
+    subdomain_placeholder: JELLYFIN_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    caddy:
+      template: jellyfin-public.caddy.tmpl
+    homepage:
+      category: Media
+      name: Jellyfin
+      description: Media server
+      icon: jellyfin.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
+
+  - id: filebrowser
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: filebrowser/filebrowser:latest
+    default_port: 80
+    default_subdomain: files
+    subdomain_key: filebrowser
+    subdomain_placeholder: FILEBROWSER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: filebrowser-public.caddy.tmpl
+    data_dirs:
+      - data/filebrowser/database
+      - data/filebrowser/srv
+    chown:
+      uid: 1000
+      gid: 1000
+    homepage:
+      category: File Sharing
+      name: File Browser
+      description: Browser-based file manager
+      icon: filebrowser.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: File Browser
+    notes: "Browser-based file manager. Optional. Stores managed files under Rakkib's data root."
+
+  - id: it-tools
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/corentinth/it-tools:latest
+    default_port: 80
+    default_subdomain: tools
+    subdomain_key: it-tools
+    subdomain_placeholder: IT_TOOLS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: it-tools-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: IT-Tools
+      description: Handy browser-based developer utilities
+      icon: it-tools.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: IT Tools
+    notes: "Static developer utility collection. Optional."
+
+  - id: cyberchef
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/gchq/cyberchef:latest
+    default_port: 80
+    default_subdomain: cyberchef
+    subdomain_key: cyberchef
+    subdomain_placeholder: CYBERCHEF_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: cyberchef-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: CyberChef
+      description: Browser-based data transformation toolkit
+      icon: cyberchef.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: CyberChef
+    notes: "Static data transformation toolkit. Optional."
+
+  - id: drawio
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jgraph/drawio:latest
+    default_port: 8080
+    default_subdomain: drawio
+    subdomain_key: drawio
+    subdomain_placeholder: DRAWIO_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: drawio-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Draw.io
+      description: Diagramming and whiteboarding
+      icon: draw-io.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: draw.io
+    notes: "Diagramming and whiteboarding app. Optional."
+
+  - id: excalidraw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: excalidraw/excalidraw:latest
+    default_port: 80
+    default_subdomain: excalidraw
+    subdomain_key: excalidraw
+    subdomain_placeholder: EXCALIDRAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: excalidraw-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Excalidraw
+      description: Virtual whiteboard for sketching diagrams
+      icon: excalidraw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Excalidraw
+    notes: "Virtual whiteboard for sketching diagrams. Optional."
+
+  - id: openclaw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    host_service: true
+    host_port: true
+    default_port: 18789
+    default_subdomain: claw
+    subdomain_key: openclaw
+    subdomain_placeholder: OPENCLAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    caddy:
+      template: openclaw-public.caddy.tmpl
+    homepage:
+      category: AI
+      name: OpenClaw
+      description: Personal AI assistant gateway
+      icon: openclaw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /healthz
+      interval: 60
+      timeout: 10
+      retries: 3
+    hooks:
+      pre_start:
+        - openclaw_install
+      post_start:
+        - openclaw_gateway_restart
+      restart:
+        - openclaw_gateway_restart
+      remove:
+        - openclaw_gateway_uninstall
+    notes: "Personal AI assistant gateway. Runs as a systemd user service on the host (not in Docker). Proxy via Caddy to host port 18789."

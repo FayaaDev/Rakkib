@@ -1,0 +1,22 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/n8n/n8n:/home/node/.n8n
+      - {{DATA_ROOT}}/data/n8n/n8nworkflows:/home/node/workflows
+    networks:
+      - {{DOCKER_NET}}
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:5678/healthz']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

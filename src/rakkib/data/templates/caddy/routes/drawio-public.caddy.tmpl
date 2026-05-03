@@ -1,0 +1,5 @@
+	# Draw.io diagramming app
+	@drawio host {{DRAWIO_SUBDOMAIN}}.{{DOMAIN}}
+	handle @drawio {
+		reverse_proxy drawio:8080
+	}

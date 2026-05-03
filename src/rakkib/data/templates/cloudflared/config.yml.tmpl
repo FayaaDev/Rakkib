@@ -1,0 +1,18 @@
+tunnel: {{TUNNEL_UUID}}
+credentials-file: {{TUNNEL_CREDS_CONTAINER_PATH}}
+
+ingress:
+  # SSH over Cloudflare Access - route to host SSH
+  - hostname: {{SSH_SUBDOMAIN}}.{{DOMAIN}}
+    service: ssh://{{LAN_IP}}:22
+
+  # Root domain
+  - hostname: {{DOMAIN}}
+    service: http://caddy:80
+
+  # All subdomains
+  - hostname: "*.{{DOMAIN}}"
+    service: http://caddy:80
+
+  # Catch-all 404
+  - service: http_status:404

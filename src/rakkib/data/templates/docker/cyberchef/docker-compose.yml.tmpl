@@ -1,0 +1,11 @@
+services:
+  cyberchef:
+    image: ghcr.io/gchq/cyberchef:latest
+    container_name: cyberchef
+    restart: unless-stopped
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

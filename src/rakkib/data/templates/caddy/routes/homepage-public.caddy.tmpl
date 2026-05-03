@@ -1,0 +1,5 @@
+	# Homepage dashboard
+	@homepage host {{HOMEPAGE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @homepage {
+		reverse_proxy homepage:3000
+	}
