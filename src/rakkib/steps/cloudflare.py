@@ -43,10 +43,34 @@ def _show_qr(url: str) -> None:
     try:
         import qrcode
         import qrcode.constants
-        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+        qr = qrcode.QRCode(
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            border=2,
+        )
         qr.add_data(url)
         qr.make(fit=True)
-        qr.print_ascii(invert=True)
+        matrix = qr.get_matrix()
+        rows = len(matrix)
+        cols = len(matrix[0]) if rows else 0
+        lines = []
+        for y in range(0, rows, 2):
+            row_top = matrix[y]
+            row_bot = matrix[y + 1] if y + 1 < rows else [True] * cols
+            line = ""
+            for x in range(cols):
+                # matrix True = dark module; invert so dark→space, light→block
+                top = not row_top[x]
+                bot = not row_bot[x]
+                if top and bot:
+                    line += "█"   # █
+                elif top:
+                    line += "▀"   # ▀
+                elif bot:
+                    line += "▄"   # ▄
+                else:
+                    line += " "
+            lines.append(line)
+        print("\n".join(lines))
     except ImportError:
         pass
 
