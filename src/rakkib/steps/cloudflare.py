@@ -39,6 +39,18 @@ def _cloudflared_bin() -> str:
     return "cloudflared"
 
 
+def _show_qr(url: str) -> None:
+    try:
+        import qrcode
+        import qrcode.constants
+        qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+        qr.add_data(url)
+        qr.make(fit=True)
+        qr.print_ascii(invert=True)
+    except ImportError:
+        pass
+
+
 def _candidate_cloudflared_paths(name: str, admin_user: str | None = None) -> list[Path]:
     """Return likely host paths for cloudflared auth artifacts."""
     candidates = [
@@ -253,28 +265,52 @@ def run(state: State) -> None:
             else:
                 headless = state.get("cloudflare.headless", False)
                 if headless:
-                    print(
-                        "\nStep 3 is paused for Cloudflare approval.\n"
-                        "cloudflared tunnel login will print a URL.\n"
-                        "Open that URL on another signed-in device, approve the domain,\n"
-                        "then return here.\n"
+                    print("\nStep 3 — Cloudflare login (headless mode)")
+                    print("Running: cloudflared tunnel login")
+                    print("Waiting for auth URL...\n")
+
+                    proc = subprocess.Popen(
+                        [_cloudflared_bin(), "tunnel", "login"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
                     )
+
+                    login_url: str | None = None
+                    assert proc.stdout is not None
+                    for line in proc.stdout:
+                        print(line, end="", flush=True)
+                        if not login_url and "https://" in line:
+                            login_url = line.strip().split()[-1]
+                            if login_url.startswith("https://"):
+                                print("\nScan this QR code on your phone to approve the domain:\n")
+                                _show_qr(login_url)
+                                print(
+                                    f"\nOr open manually:\n  {login_url}\n\n"
+                                    "Waiting for approval — keep this terminal open...\n"
+                                )
+
+                    proc.wait()
+                    if proc.returncode != 0:
+                        raise RuntimeError(
+                            f"cloudflared tunnel login failed (exit {proc.returncode}). "
+                            "Try again or use auth_method=api_token."
+                        )
                 else:
                     print(
                         "\nStep 3 is paused for Cloudflare approval.\n"
                         "A browser window will open for Cloudflare login.\n"
                         "Approve the domain, then return here.\n"
                     )
-
-                result = subprocess.run(
-                    [_cloudflared_bin(), "tunnel", "login"],
-                    text=True,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(
-                        f"cloudflared tunnel login failed: "
-                        f"{result.stderr.strip() if result.stderr else 'unknown error'}"
+                    result = subprocess.run(
+                        [_cloudflared_bin(), "tunnel", "login"],
+                        text=True,
                     )
+                    if result.returncode != 0:
+                        raise RuntimeError(
+                            f"cloudflared tunnel login failed: "
+                            f"{result.stderr.strip() if result.stderr else 'unknown error'}"
+                        )
 
                 default_cert = _find_cloudflared_artifact("cert.pem", admin_user=admin_user)
                 if default_cert is not None and not cert_path.exists():

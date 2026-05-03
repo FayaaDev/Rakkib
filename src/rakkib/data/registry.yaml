@@ -436,7 +436,7 @@ services:
     required: false
     optional: true
     image: ghcr.io/gchq/cyberchef:latest
-    default_port: 80
+    default_port: 8080
     default_subdomain: cyberchef
     subdomain_key: cyberchef
     subdomain_placeholder: CYBERCHEF_SUBDOMAIN

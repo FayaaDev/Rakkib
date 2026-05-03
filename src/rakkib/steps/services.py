@@ -21,6 +21,7 @@ from rakkib.docker import (
     container_publishes_port,
     container_running,
     docker_run,
+    health_check,
 )
 from rakkib.hooks.services import (
     POST_RENDER_HOOKS,
@@ -368,6 +369,10 @@ def _deploy_single_service(state: State, svc: dict, repo: Path, data_root: Path)
             f"Service '{svc_id}' failed to start. "
             f"Env: {env_path}. Compose: {svc_dir / 'docker-compose.yml'}. Log: {log_path}. {exc}"
         ) from exc
+
+    container_name = svc.get("container_name", svc_id)
+    if not health_check(container_name, timeout=int(svc.get("health_timeout", 120))):
+        raise RuntimeError(f"Service '{svc_id}' did not become healthy. Log: {log_path}.")
 
     _run_named_hooks(hooks.get("post_start", []), POST_START_HOOKS, state, svc, repo, data_root, log_path, registry)
 
