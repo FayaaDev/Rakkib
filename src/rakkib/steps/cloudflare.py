@@ -52,12 +52,23 @@ def _show_qr(url: str) -> None:
         matrix = qr.get_matrix()
         rows = len(matrix)
         cols = len(matrix[0]) if rows else 0
-        # ANSI: \033[40m = black bg, \033[107m = bright white bg, \033[0m = reset
-        # Two spaces per module so pixels are roughly square in most fonts
-        black = "\033[40m  \033[0m"
-        white = "\033[107m  \033[0m"
-        for y in range(rows):
-            print("".join(black if matrix[y][x] else white for x in range(cols)))
+        # ▄ = lower-half block; bg = upper pixel, fg = lower pixel.
+        # Packs 2 rows per line at 1 char per module — quarter the area of
+        # the 2-space version while keeping ANSI-enforced black/white contrast.
+        _B = "\033[40m"   # black bg
+        _W = "\033[107m"  # bright white bg
+        _b = "\033[30m"   # black fg
+        _w = "\033[97m"   # bright white fg
+        _R = "\033[0m"    # reset
+        for y in range(0, rows, 2):
+            row_top = matrix[y]
+            row_bot = matrix[y + 1] if y + 1 < rows else [False] * cols
+            line = ""
+            for x in range(cols):
+                bg = _B if row_top[x] else _W
+                fg = _b if row_bot[x] else _w
+                line += f"{bg}{fg}▄{_R}"
+            print(line)
     except ImportError:
         pass
 
