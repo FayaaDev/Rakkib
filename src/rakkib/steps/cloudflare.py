@@ -52,25 +52,12 @@ def _show_qr(url: str) -> None:
         matrix = qr.get_matrix()
         rows = len(matrix)
         cols = len(matrix[0]) if rows else 0
-        lines = []
-        for y in range(0, rows, 2):
-            row_top = matrix[y]
-            row_bot = matrix[y + 1] if y + 1 < rows else [True] * cols
-            line = ""
-            for x in range(cols):
-                # matrix True = dark module; invert so dark→space, light→block
-                top = not row_top[x]
-                bot = not row_bot[x]
-                if top and bot:
-                    line += "█"   # █
-                elif top:
-                    line += "▀"   # ▀
-                elif bot:
-                    line += "▄"   # ▄
-                else:
-                    line += " "
-            lines.append(line)
-        print("\n".join(lines))
+        # ANSI: \033[40m = black bg, \033[107m = bright white bg, \033[0m = reset
+        # Two spaces per module so pixels are roughly square in most fonts
+        black = "\033[40m  \033[0m"
+        white = "\033[107m  \033[0m"
+        for y in range(rows):
+            print("".join(black if matrix[y][x] else white for x in range(cols)))
     except ImportError:
         pass
 
