@@ -23,12 +23,6 @@ https://github.com/user-attachments/assets/ca819df9-1efe-48a7-9127-a747474dc4fb
 rakkib update
 ```
 
-## Demo
-
-Watch the setup demo from the public release page:
-
-https://github.com/FayaaDev/rakkib/releases/tag/Demo
-
 ## Requirements
 
 - Ubuntu 24.04 is the tested production deployment target.
