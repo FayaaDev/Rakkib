@@ -1,6 +1,6 @@
 # Rakkib
 
-Rakkib is a wizard-driven personal server installer for fresh Ubuntu servers. It records your setup choices, renders service configuration, and applies verified setup steps for the selected services.
+Rakkib is a personal server installer for fresh Ubuntu servers and MacOS. Choose from 50+ services and Rakkib will handle rendering, service configuration, and deployment (local or subdomain)
 
 ## Install
 
@@ -36,7 +36,8 @@ rakkib update
 
 ## Development
 
-This repository is the generated public runtime snapshot for Rakkib installs. Runtime releases are published from the private development repository and should not be edited here directly.
+This is a new project. Expect bugs. PRs are welcome. 
+Recommend your favorite open source tool and it will be added.
 
 ## License
 
