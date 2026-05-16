@@ -124,7 +124,7 @@ def _run_auth_setup(ctx: click.Context) -> bool:
                 )
                 console.print(f"[dim]{retry_exc or exc}[/dim]")
                 return False
-        console.print("[green]Docker is ready.[/green]")
+        console.print("[green]Re-run `rakkib pull`.[/green]")
         return True
 
     if shutil.which("sudo") is None:
@@ -147,7 +147,7 @@ def _run_auth_setup(ctx: click.Context) -> bool:
     user = docker_access_user(state)
     try:
         docker_run(["info"])
-        console.print("[green]Docker is ready.[/green]")
+        console.print("[green]Re-run `rakkib pull`.[/green]")
         return True
     except DockerError as exc:
         if not is_docker_permission_error(exc.stderr or str(exc)):
@@ -161,8 +161,7 @@ def _run_auth_setup(ctx: click.Context) -> bool:
         console.print(f"[dim]{docker_access_commands(user)}[/dim]")
         return False
     console.print(
-        "[green]Docker is ready for your user.[/green] "
-        "Open a new shell, then run `rakkib web`."
+        "[green]Re-run `rakkib pull`.[/green]"
     )
     return True
 
