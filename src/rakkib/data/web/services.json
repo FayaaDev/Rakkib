@@ -118,6 +118,19 @@
       "icon": "openclaw.png"
     },
     {
+      "id": "hermes-agent",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "hermes",
+      "default_port": 9119,
+      "category": "AI",
+      "name": "Hermes Agent",
+      "description": "Self-improving AI agent (NousResearch)",
+      "icon": "hermes.png"
+    },
+    {
       "id": "serge",
       "required": false,
       "optional": true,
@@ -142,6 +155,19 @@
       "name": "n8n",
       "description": "Workflow automation",
       "icon": "n8n.png"
+    },
+    {
+      "id": "openbooks",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "openbooks",
+      "default_port": 80,
+      "category": "Books",
+      "name": "OpenBooks",
+      "description": "Search and download ebooks",
+      "icon": "books.png"
     },
     {
       "id": "caddy",
@@ -209,6 +235,19 @@
       "icon": "glance.png"
     },
     {
+      "id": "homarr",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "homarr",
+      "default_port": 7575,
+      "category": "Dashboards",
+      "name": "Homarr",
+      "description": "Modern server dashboard",
+      "icon": "homarr.png"
+    },
+    {
       "id": "homer",
       "required": false,
       "optional": true,
@@ -246,19 +285,6 @@
       "name": "Forgejo",
       "description": "Self-hosted Git forge",
       "icon": "forgejo.png"
-    },
-    {
-      "id": "hermes-agent",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "hermes",
-      "default_port": 9119,
-      "category": "Developer Tools",
-      "name": "Hermes Agent",
-      "description": "Self-improving AI agent (NousResearch)",
-      "icon": "hermes.png"
     },
     {
       "id": "it-tools",
@@ -300,6 +326,32 @@
       "icon": "excalidraw.png"
     },
     {
+      "id": "memos",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "memos",
+      "default_port": 5230,
+      "category": "Documents",
+      "name": "Memos",
+      "description": "Lightweight note-taking",
+      "icon": "memos.png"
+    },
+    {
+      "id": "notemark",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "notemark",
+      "default_port": 8080,
+      "category": "Documents",
+      "name": "Note Mark",
+      "description": "Markdown notes app",
+      "icon": "markdown.png"
+    },
+    {
       "id": "stirling-pdf",
       "required": false,
       "optional": true,
@@ -339,6 +391,19 @@
       "icon": "pairdrop.png"
     },
     {
+      "id": "pingvin-share",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "pingvin",
+      "default_port": 3000,
+      "category": "File Sharing",
+      "name": "Pingvin Share",
+      "description": "WeTransfer-style file sharing",
+      "icon": "pingvin-share.png"
+    },
+    {
       "id": "transfer",
       "required": false,
       "optional": true,
@@ -365,6 +430,19 @@
       "icon": "folder.png"
     },
     {
+      "id": "wallos",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "wallos",
+      "default_port": 80,
+      "category": "Finance",
+      "name": "Wallos",
+      "description": "Subscription and expense tracker",
+      "icon": "wallos.png"
+    },
+    {
       "id": "homepage",
       "required": false,
       "optional": true,
@@ -376,6 +454,45 @@
       "name": "homepage",
       "description": "Service dashboard. Foundation bundle service. services.yaml generated from selected service list.",
       "icon": null
+    },
+    {
+      "id": "esphome",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "esphome",
+      "default_port": 6052,
+      "category": "Home Automation",
+      "name": "ESPHome",
+      "description": "ESP device firmware dashboard",
+      "icon": "esphome.png"
+    },
+    {
+      "id": "gladys-assistant",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "gladys",
+      "default_port": 80,
+      "category": "Home Automation",
+      "name": "Gladys Assistant",
+      "description": "Smart home dashboard and automation",
+      "icon": "gladys-assistant.png"
+    },
+    {
+      "id": "matter-server",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 5580,
+      "category": "Home Automation",
+      "name": "Matter Server",
+      "description": "Matter controller WebSocket server",
+      "icon": "home-assistant.png"
     },
     {
       "id": "autoheal",
@@ -443,6 +560,19 @@
       "icon": "docker.png"
     },
     {
+      "id": "dailytxt",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "dailytxt",
+      "default_port": 80,
+      "category": "Lifestyle",
+      "name": "DailyTxT",
+      "description": "Encrypted diary and journal",
+      "icon": "dailytxt.png"
+    },
+    {
       "id": "mealie",
       "required": false,
       "optional": true,
@@ -482,6 +612,19 @@
       "icon": "jellyfin.png"
     },
     {
+      "id": "plex",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "plex",
+      "default_port": 32400,
+      "category": "Media",
+      "name": "Plex",
+      "description": "Personal media server",
+      "icon": "plex.png"
+    },
+    {
       "id": "dozzle",
       "required": false,
       "optional": true,
@@ -493,6 +636,32 @@
       "name": "Dozzle",
       "description": "Container log viewer",
       "icon": "docker.png"
+    },
+    {
+      "id": "glances",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "glances",
+      "default_port": 61208,
+      "category": "Monitoring",
+      "name": "Glances",
+      "description": "Host and container metrics dashboard",
+      "icon": "glances.png"
+    },
+    {
+      "id": "grafana",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "grafana",
+      "default_port": 3000,
+      "category": "Monitoring",
+      "name": "Grafana",
+      "description": "Metrics dashboards and visualisation",
+      "icon": "grafana.png"
     },
     {
       "id": "freshrss",
