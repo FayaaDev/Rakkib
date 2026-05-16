@@ -1,0 +1,5 @@
+	# Whoami request debug page
+	@whoami host {{WHOAMI_SUBDOMAIN}}.{{DOMAIN}}
+	handle @whoami {
+		reverse_proxy whoami:80
+	}

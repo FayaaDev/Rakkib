@@ -1,0 +1,5 @@
+	# Homarr dashboard
+	@homarr host {{HOMARR_SUBDOMAIN}}.{{DOMAIN}}
+	handle @homarr {
+		reverse_proxy homarr:7575
+	}

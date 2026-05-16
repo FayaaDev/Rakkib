@@ -1,0 +1,12 @@
+services:
+  chatpad:
+    image: ${CHATPAD_IMAGE:-ghcr.io/deiucanta/chatpad:latest}
+    container_name: chatpad
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

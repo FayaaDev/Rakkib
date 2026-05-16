@@ -1,0 +1,5 @@
+	# Note Mark
+	@notemark host {{NOTEMARK_SUBDOMAIN}}.{{DOMAIN}}
+	handle @notemark {
+		reverse_proxy notemark:8080
+	}

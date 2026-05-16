@@ -1,0 +1,5 @@
+	# Glances host and container metrics dashboard
+	@glances host {{GLANCES_SUBDOMAIN}}.{{DOMAIN}}
+	handle @glances {
+		reverse_proxy glances:61208
+	}

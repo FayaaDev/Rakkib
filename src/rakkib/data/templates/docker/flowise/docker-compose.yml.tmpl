@@ -1,0 +1,15 @@
+services:
+  flowise:
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/flowise/.flowise:/root/.flowise
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

@@ -1,0 +1,36 @@
+services:
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: rsshub
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - rsshub-redis
+      - rsshub-browserless
+    networks:
+      - {{DOCKER_NET}}
+
+  rsshub-redis:
+    image: redis:7-alpine
+    container_name: rsshub-redis
+    restart: unless-stopped
+    volumes:
+      - {{DATA_ROOT}}/data/rsshub/redis:/data
+    networks:
+      - {{DOCKER_NET}}
+
+  rsshub-browserless:
+    image: browserless/chrome:latest
+    container_name: rsshub-browserless
+    restart: unless-stopped
+    environment:
+      - MAX_CONCURRENT_SESSIONS=5
+      - PREBOOT_CHROME=true
+      - CONNECTION_TIMEOUT=600000
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

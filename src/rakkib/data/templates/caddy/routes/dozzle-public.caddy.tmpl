@@ -1,0 +1,5 @@
+	# Dozzle container log viewer
+	@dozzle host {{DOZZLE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @dozzle {
+		reverse_proxy dozzle:8080
+	}

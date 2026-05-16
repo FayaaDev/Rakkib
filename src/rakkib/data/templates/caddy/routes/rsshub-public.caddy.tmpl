@@ -1,0 +1,5 @@
+	# RSSHub
+	@rsshub host {{RSSHUB_SUBDOMAIN}}.{{DOMAIN}}
+	handle @rsshub {
+		reverse_proxy rsshub:1200
+	}

@@ -1,0 +1,5 @@
+	# Dockge Compose manager
+	@dockge host {{DOCKGE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @dockge {
+		reverse_proxy dockge:5001
+	}

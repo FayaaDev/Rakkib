@@ -1,0 +1,21 @@
+services:
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    container_name: open-webui
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
+    extra_hosts:
+      # Allows reaching services running on the host (e.g., Ollama on port 11434).
+      - host.docker.internal:host-gateway
+    volumes:
+      - {{DATA_ROOT}}/data/open-webui:/app/backend/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

@@ -1,0 +1,5 @@
+	# Pingvin Share file sharing
+	@pingvin_share host {{PINGVIN_SHARE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @pingvin_share {
+		reverse_proxy pingvin-share:3000
+	}

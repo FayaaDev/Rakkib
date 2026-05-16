@@ -1,0 +1,5 @@
+	# Hermes Agent dashboard (WARNING: can expose secrets; protect with auth upstream)
+	@hermes_agent host {{HERMES_AGENT_SUBDOMAIN}}.{{DOMAIN}}
+	handle @hermes_agent {
+		reverse_proxy hermes-agent-dashboard:9119
+	}

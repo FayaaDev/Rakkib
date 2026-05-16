@@ -1,0 +1,5 @@
+	# Stirling-PDF (self-hosted PDF toolkit)
+	@stirling_pdf host {{STIRLING_PDF_SUBDOMAIN}}.{{DOMAIN}}
+	handle @stirling_pdf {
+		reverse_proxy stirling-pdf:8080
+	}

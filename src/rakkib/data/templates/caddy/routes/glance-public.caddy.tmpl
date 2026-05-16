@@ -1,0 +1,5 @@
+	# Glance dashboard
+	@glance host {{GLANCE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @glance {
+		reverse_proxy glance:8080
+	}

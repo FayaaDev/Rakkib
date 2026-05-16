@@ -1,0 +1,15 @@
+services:
+  notemark:
+    image: ${NOTEMARK_IMAGE:-ghcr.io/enchant97/note-mark-aio:0.19.4}
+    container_name: notemark
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/notemark:/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

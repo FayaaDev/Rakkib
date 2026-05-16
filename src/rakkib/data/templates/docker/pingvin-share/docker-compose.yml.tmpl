@@ -1,0 +1,20 @@
+services:
+  pingvin-share:
+    image: stonith404/pingvin-share:latest
+    container_name: pingvin-share
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PUID=${ADMIN_UID}
+      - PGID=${ADMIN_GID}
+      - TRUST_PROXY=${PINGVIN_TRUST_PROXY:-true}
+    volumes:
+      - {{DATA_ROOT}}/data/pingvin-share/data:/opt/app/backend/data
+      - {{DATA_ROOT}}/data/pingvin-share/images:/opt/app/frontend/public/img
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

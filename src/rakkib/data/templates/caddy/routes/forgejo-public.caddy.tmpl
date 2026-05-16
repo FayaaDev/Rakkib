@@ -1,0 +1,9 @@
+	# Forgejo (self-hosted Git forge)
+	@forgejo host {{FORGEJO_SUBDOMAIN}}.{{DOMAIN}}
+	handle @forgejo {
+		reverse_proxy forgejo:3000 {
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}

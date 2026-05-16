@@ -1,0 +1,5 @@
+	# Moodist ambient sounds
+	@moodist host {{MOODIST_SUBDOMAIN}}.{{DOMAIN}}
+	handle @moodist {
+		reverse_proxy moodist:8080
+	}

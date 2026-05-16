@@ -1,0 +1,9 @@
+	# AdGuard Home
+	@adguard host {{ADGUARD_SUBDOMAIN}}.{{DOMAIN}}
+	handle @adguard {
+		reverse_proxy adguard:3000 {
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}

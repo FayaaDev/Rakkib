@@ -1,0 +1,284 @@
+#!/bin/bash
+
+set -Eeuo pipefail
+
+SERVER_NAME="{{SERVER_NAME}}"
+DATA_ROOT="{{DATA_ROOT}}"
+BACKUP_ROOT="{{BACKUP_DIR}}"
+STAMP="$(date +%Y%m%d_%H%M%S)"
+RUN_DIR="${BACKUP_ROOT}/rakkib_${SERVER_NAME}_${STAMP}"
+DRY_RUN=false
+
+DATA_ARCHIVES=()
+SERVICES=()
+POSTGRES_DATABASES=()
+SECRETS_ARCHIVE="null"
+POSTGRES_DUMP="null"
+
+usage() {
+    cat <<'USAGE'
+Usage: backup-local.sh [--dry-run]
+
+Creates a local Rakkib backup with daily, weekly, and monthly retention buckets.
+USAGE
+}
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'Unknown argument: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+json_escape() {
+    local value="$1"
+    value=${value//\\/\\\\}
+    value=${value//"/\\"}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '%s' "$value"
+}
+
+json_string_array() {
+    local first=true
+    local item
+    printf '['
+    for item in "$@"; do
+        if [[ "$first" == true ]]; then
+            first=false
+        else
+            printf ','
+        fi
+        printf '"%s"' "$(json_escape "$item")"
+    done
+    printf ']'
+}
+
+first_line() {
+    sed -n '1p'
+}
+
+command_version() {
+    if command_exists "$1"; then
+        "$@" 2>/dev/null | first_line || printf 'unavailable'
+    else
+        printf 'missing'
+    fi
+}
+
+retention_bucket() {
+    local day_of_month day_of_week
+    day_of_month="$(date +%d)"
+    day_of_week="$(date +%u)"
+
+    if [[ "$day_of_month" == "01" ]]; then
+        printf 'monthly'
+    elif [[ "$day_of_week" == "7" ]]; then
+        printf 'weekly'
+    else
+        printf 'daily'
+    fi
+}
+
+discover_services() {
+    local service
+    for service in caddy cloudflared postgres nocodb n8n immich openclaw; do
+        if [[ -d "${DATA_ROOT}/docker/${service}" || -d "${DATA_ROOT}/data/${service}" ]]; then
+            SERVICES+=("$service")
+        fi
+    done
+    if [[ -d "$HOME/.hermes" ]]; then
+        SERVICES+=("hermes")
+    fi
+}
+
+docker_container_running() {
+    local name="$1"
+    command_exists docker || return 1
+    docker ps 2>/dev/null | awk 'NR > 1 { print $NF }' | grep -qx "$name"
+}
+
+discover_postgres_databases() {
+    docker_container_running postgres || return 0
+    local db
+    while IFS= read -r db; do
+        [[ -n "$db" ]] && POSTGRES_DATABASES+=("$db")
+    done < <(docker exec postgres psql -U postgres -Atc "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;" 2>/dev/null || true)
+}
+
+archive_dir() {
+    local source_dir="$1"
+    local name="$2"
+    shift 2
+
+    [[ -d "$source_dir" ]] || return 0
+
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] archive %s -> %s.tar.gz\n' "$source_dir" "$name"
+        return 0
+    fi
+
+    tar "$@" -czf "${RUN_DIR}/${name}.tar.gz" -C "$(dirname "$source_dir")" "$(basename "$source_dir")"
+    DATA_ARCHIVES+=("${name}.tar.gz")
+}
+
+archive_secrets() {
+    local secret_paths=()
+    local env_file service_name secret_file
+
+    if [[ -d "${DATA_ROOT}/secrets" ]]; then
+        secret_paths+=("secrets")
+    fi
+
+    for env_file in "${DATA_ROOT}"/docker/*/.env; do
+        [[ -f "$env_file" ]] || continue
+        service_name="$(basename "$(dirname "$env_file")")"
+        secret_paths+=("docker/${service_name}/.env")
+    done
+
+    for secret_file in "${DATA_ROOT}"/data/cloudflared/*.json "${DATA_ROOT}"/data/cloudflared/cert.pem; do
+        [[ -f "$secret_file" ]] || continue
+        secret_paths+=("data/cloudflared/$(basename "$secret_file")")
+    done
+
+    [[ "${{ '{#' }}secret_paths[@]}" -gt 0 ]] || return 0
+
+    SECRETS_ARCHIVE="secrets.tar.gz"
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] archive secrets: %s\n' "${secret_paths[*]}"
+        return 0
+    fi
+
+    tar -czf "${RUN_DIR}/secrets.tar.gz" -C "$DATA_ROOT" "${secret_paths[@]}"
+}
+
+dump_postgres() {
+    docker_container_running postgres || return 0
+    POSTGRES_DUMP="postgres.sql.gz"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] dump postgres -> postgres.sql.gz\n'
+        return 0
+    fi
+
+    docker exec postgres pg_dumpall -U postgres | gzip > "${RUN_DIR}/postgres.sql.gz"
+}
+
+write_manifest_text() {
+    [[ "$DRY_RUN" == true ]] && return 0
+    {
+        printf 'server=%s\n' "$SERVER_NAME"
+        printf 'created=%s\n' "$STAMP"
+        printf 'retention_bucket=%s\n' "$RETENTION_BUCKET"
+        printf 'postgres_dump=%s\n' "$POSTGRES_DUMP"
+        printf 'secrets_archive=%s\n' "$SECRETS_ARCHIVE"
+    } > "${RUN_DIR}/manifest.txt"
+}
+
+write_manifest_json() {
+    [[ "$DRY_RUN" == true ]] && return 0
+
+    local docker_version compose_version tar_version gzip_version
+    docker_version="$(command_version docker --version)"
+    compose_version="$(command_version docker compose version)"
+    tar_version="$(command_version tar --version)"
+    gzip_version="$(command_version gzip --version)"
+
+    {
+        printf '{\n'
+        printf '  "server_name": "%s",\n' "$(json_escape "$SERVER_NAME")"
+        printf '  "created": "%s",\n' "$(json_escape "$STAMP")"
+        printf '  "retention_bucket": "%s",\n' "$(json_escape "$RETENTION_BUCKET")"
+        printf '  "services": %s,\n' "$(json_string_array "${SERVICES[@]}")"
+        printf '  "postgres": {\n'
+        printf '    "dump": %s,\n' "$(if [[ "$POSTGRES_DUMP" == "null" ]]; then printf 'null'; else printf '"%s"' "$(json_escape "$POSTGRES_DUMP")"; fi)"
+        printf '    "databases": %s\n' "$(json_string_array "${POSTGRES_DATABASES[@]}")"
+        printf '  },\n'
+        printf '  "data_archives": %s,\n' "$(json_string_array "${DATA_ARCHIVES[@]}")"
+        printf '  "secrets_archive": %s,\n' "$(if [[ "$SECRETS_ARCHIVE" == "null" ]]; then printf 'null'; else printf '"%s"' "$(json_escape "$SECRETS_ARCHIVE")"; fi)"
+        printf '  "tool_versions": {\n'
+        printf '    "docker": "%s",\n' "$(json_escape "$docker_version")"
+        printf '    "docker_compose": "%s",\n' "$(json_escape "$compose_version")"
+        printf '    "tar": "%s",\n' "$(json_escape "$tar_version")"
+        printf '    "gzip": "%s"\n' "$(json_escape "$gzip_version")"
+        printf '  }\n'
+        printf '}\n'
+    } > "${RUN_DIR}/manifest.json"
+}
+
+mark_retention_bucket() {
+    [[ "$DRY_RUN" == true ]] && return 0
+    touch "${RUN_DIR}/.${RETENTION_BUCKET}"
+}
+
+prune_bucket() {
+    local bucket="$1"
+    local keep="$2"
+    local marker=".${bucket}"
+    local count=0
+    local dir base
+
+    while IFS= read -r base; do
+        dir="${BACKUP_ROOT}/${base}"
+        [[ -f "${dir}/${marker}" ]] || continue
+        count=$((count + 1))
+        if [[ "$count" -gt "$keep" ]]; then
+            if [[ "$DRY_RUN" == true ]]; then
+                printf '[dry-run] prune %s bucket backup %s\n' "$bucket" "$dir"
+            else
+                rm -rf -- "$dir"
+            fi
+        fi
+    done < <(
+        for dir in "${BACKUP_ROOT}"/rakkib_${SERVER_NAME}_*; do
+            [[ -d "$dir" ]] || continue
+            basename "$dir"
+        done | sort -r
+    )
+}
+
+RETENTION_BUCKET="$(retention_bucket)"
+
+if [[ "$DRY_RUN" == true ]]; then
+    printf '[dry-run] backup directory: %s\n' "$RUN_DIR"
+    printf '[dry-run] retention bucket: %s\n' "$RETENTION_BUCKET"
+else
+    mkdir -p "$RUN_DIR"
+fi
+
+discover_services
+discover_postgres_databases
+archive_dir "${DATA_ROOT}/docker" "docker" --exclude 'docker/*/.env'
+archive_dir "${DATA_ROOT}/data" "data" --exclude 'data/postgres' --exclude 'data/postgres/*' --exclude 'data/cloudflared/*.json' --exclude 'data/cloudflared/cert.pem'
+archive_dir "${DATA_ROOT}/MDs" "docs"
+archive_dir "$HOME/.hermes" "hermes" --exclude 'hermes/.env'
+archive_secrets
+dump_postgres
+write_manifest_text
+write_manifest_json
+mark_retention_bucket
+prune_bucket daily 7
+prune_bucket weekly 4
+prune_bucket monthly 6
+
+if [[ "$DRY_RUN" == true ]]; then
+    printf 'Backup dry run complete\n'
+else
+    printf 'Backup complete: %s\n' "$RUN_DIR"
+fi

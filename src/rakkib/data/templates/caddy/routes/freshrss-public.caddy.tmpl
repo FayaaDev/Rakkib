@@ -1,0 +1,5 @@
+	# FreshRSS RSS feed aggregator
+	@freshrss host {{FRESHRSS_SUBDOMAIN}}.{{DOMAIN}}
+	handle @freshrss {
+		reverse_proxy freshrss:80
+	}

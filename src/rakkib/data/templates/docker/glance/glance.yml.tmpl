@@ -1,0 +1,22 @@
+# Glance configuration — edit this file to customise your dashboard.
+# Full reference: https://github.com/glanceapp/glance/blob/main/docs/configuration.md
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          - type: search
+            autofocus: true
+          - type: weather
+            location: New York, NY, United States
+            show-area: true
+
+      - size: full
+        widgets:
+          - type: hacker-news
+
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h

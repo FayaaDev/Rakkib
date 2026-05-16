@@ -1,0 +1,5 @@
+	# Flowise
+	@flowise host {{FLOWISE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @flowise {
+		reverse_proxy flowise:3000
+	}

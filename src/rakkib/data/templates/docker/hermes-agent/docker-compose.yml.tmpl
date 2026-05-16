@@ -1,0 +1,30 @@
+services:
+  hermes-agent:
+    image: ${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
+    container_name: hermes-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/hermes-agent:/opt/data
+    networks:
+      - {{DOCKER_NET}}
+    command: ["gateway", "run"]
+
+  hermes-agent-dashboard:
+    image: ${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
+    container_name: hermes-agent-dashboard
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/hermes-agent:/opt/data
+    depends_on:
+      - hermes-agent
+    networks:
+      - {{DOCKER_NET}}
+    command: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

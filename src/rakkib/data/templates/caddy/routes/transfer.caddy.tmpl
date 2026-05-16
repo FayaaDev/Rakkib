@@ -1,0 +1,9 @@
+	# transfer.sh public unauthenticated upload endpoint
+	@transfer host {{TRANSFER_SUBDOMAIN}}.{{DOMAIN}}
+	handle @transfer {
+		reverse_proxy transfer:8080 {
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}

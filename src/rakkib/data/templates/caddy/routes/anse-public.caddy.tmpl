@@ -1,0 +1,5 @@
+	# Anse AI chat UI
+	@anse host {{ANSE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @anse {
+		reverse_proxy anse:3000
+	}

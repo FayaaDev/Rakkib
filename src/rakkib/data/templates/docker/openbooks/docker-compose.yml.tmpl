@@ -1,0 +1,16 @@
+services:
+  openbooks:
+    image: ${OPENBOOKS_IMAGE:-evanbuss/openbooks:4.5.0}
+    container_name: openbooks
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["--name", "${OPENBOOKS_IRC_NAME:-rakkib}", "--persist"]
+    volumes:
+      - {{DATA_ROOT}}/data/openbooks/books:/books
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

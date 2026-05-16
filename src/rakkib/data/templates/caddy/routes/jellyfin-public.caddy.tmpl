@@ -1,0 +1,5 @@
+	# Jellyfin media server
+	@jellyfin host {{JELLYFIN_SUBDOMAIN}}.{{DOMAIN}}
+	handle @jellyfin {
+		reverse_proxy jellyfin:8096
+	}

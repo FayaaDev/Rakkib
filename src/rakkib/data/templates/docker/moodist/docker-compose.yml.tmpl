@@ -1,0 +1,11 @@
+services:
+  moodist:
+    image: ${MOODIST_IMAGE:-ghcr.io/remvze/moodist:v2.6.0}
+    container_name: moodist
+    restart: unless-stopped
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

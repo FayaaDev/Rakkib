@@ -1,0 +1,5 @@
+	# DailyTxT encrypted diary and journal
+	@dailytxt host {{DAILYTXT_SUBDOMAIN}}.{{DOMAIN}}
+	handle @dailytxt {
+		reverse_proxy dailytxt:80
+	}

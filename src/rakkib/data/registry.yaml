@@ -1,0 +1,2689 @@
+services:
+  - id: caddy
+    state_bucket: always
+    required: true
+    image: caddy:2
+    default_port: 80
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    data_dirs:
+      - data/caddy/data
+      - data/caddy/config
+    notes: "Reverse proxy. Installed only for Cloudflare exposure."
+
+  - id: cloudflared
+    state_bucket: always
+    required: true
+    image: cloudflare/cloudflared:latest
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    env_preserve_keys:
+      - TUNNEL_UUID
+      - CLOUDFLARED_METRICS_PORT
+      - ADMIN_UID
+      - ADMIN_GID
+    depends_on: []
+    host_service: false
+    data_dirs:
+      - data/cloudflared
+    notes: "Cloudflare tunnel. Installed only for Cloudflare exposure. Step 3 may pause for guided Cloudflare login approval."
+
+  - id: postgres
+    state_bucket: always
+    required: true
+    image: pgvector/pgvector:pg16
+    default_port: 5432
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys:
+      - POSTGRES_PASSWORD
+    depends_on: []
+    host_service: false
+    host_port: true
+    data_dirs:
+      - data/postgres/data
+    secrets:
+      POSTGRES_PASSWORD:
+        factory: password
+    notes: "Single postgres instance serves all services. Port bound to 127.0.0.1 only."
+
+  # --- Foundation Bundle (recommended, presented as a pre-checked group) ---
+
+  - id: nocodb
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: nocodb/nocodb:latest
+    default_port: 8080
+    default_subdomain: nocodb
+    subdomain_key: nocodb
+    subdomain_placeholder: NOCODB_SUBDOMAIN
+    env_keys:
+      - NOCODB_DB_PASS
+      - ADMIN_EMAIL
+      - NOCODB_ADMIN_PASS
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13001
+      container_port: 8080
+    caddy:
+      template: nocodb.caddy.tmpl
+    secrets:
+      NOCODB_ADMIN_PASS:
+        factory: password
+      NOCODB_DB_PASS:
+        factory: password
+    postgres:
+      role: nocodb
+      db: nocodb_db
+      password_key: NOCODB_DB_PASS
+      display_name: NocoDB
+    data_dirs:
+      - data/nocodb
+    homepage:
+      category: Infrastructure
+      name: NocoDB
+      description: No-code database UI
+      icon: nocodb.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: NocoDB
+    notes: "No-code database UI. Foundation bundle service."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+      remove:
+        - cloudflare_dns_delete
+
+  - id: homepage
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: ghcr.io/gethomepage/homepage:latest
+    default_port: 3000
+    default_subdomain: home
+    subdomain_key: homepage
+    subdomain_placeholder: HOMEPAGE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13000
+      container_port: 3000
+    caddy:
+      template: homepage-public.caddy.tmpl
+    data_dirs:
+      - data/homepage/config
+    hooks:
+      post_render:
+        - homepage_services_yaml
+      remove:
+        - cloudflare_dns_delete
+    smoke:
+      path: /
+      expected_text: Homepage
+    notes: "Service dashboard. Foundation bundle service. services.yaml generated from selected service list."
+
+  - id: uptime-kuma
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/uptime-kuma:latest
+    default_port: 3001
+    default_subdomain: status
+    subdomain_key: uptime-kuma
+    subdomain_placeholder: UPTIME_KUMA_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13002
+      container_port: 3001
+    caddy:
+      template: uptime-kuma-public.caddy.tmpl
+    secrets:
+      UPTIME_KUMA_ADMIN_USER:
+        value: admin
+      UPTIME_KUMA_ADMIN_PASS:
+        factory: password
+    data_dirs:
+      - data/uptime-kuma
+    homepage:
+      category: Infrastructure
+      name: Uptime Kuma
+      description: Uptime monitoring
+      icon: uptime-kuma.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Uptime Kuma
+    notes: "Uptime monitoring. Foundation bundle service."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: dockge
+    state_bucket: foundation_services
+    required: false
+    optional: true
+    foundation: true
+    image: louislam/dockge:latest
+    default_port: 5001
+    default_subdomain: dockge
+    subdomain_key: dockge
+    subdomain_placeholder: DOCKGE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13003
+      container_port: 5001
+    caddy:
+      template: dockge-public.caddy.tmpl
+    data_dirs:
+      - data/dockge
+    homepage:
+      category: Infrastructure
+      name: Dockge
+      description: Compose manager
+      icon: docker.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Dockge
+    notes: "Docker Compose manager UI. Foundation bundle service. Mounts the stacks directory."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  # --- Optional Services (Tier 1) ---
+
+  - id: n8n
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: n8nio/n8n:latest
+    default_port: 5678
+    default_subdomain: n8n
+    subdomain_key: n8n
+    subdomain_placeholder: N8N_SUBDOMAIN
+    env_keys:
+      - N8N_DB_PASS
+      - N8N_ENCRYPTION_KEY
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13004
+      container_port: 5678
+    caddy:
+      template: n8n-public.caddy.tmpl
+    env_preserve_keys:
+      - N8N_ENCRYPTION_KEY
+    data_dirs:
+      - data/n8n/n8n
+      - data/n8n/n8nworkflows
+    chown:
+      uid: 1000
+      gid: 1000
+    secrets:
+      N8N_DB_PASS:
+        factory: password
+    conditional_secrets:
+      - when: secrets.n8n_mode != migrate
+        keys:
+          N8N_ENCRYPTION_KEY:
+            factory: password
+            length: 32
+    postgres:
+      role: n8n
+      db: n8n_db
+      password_key: N8N_DB_PASS
+      display_name: n8n
+    homepage:
+      category: Automation
+      name: n8n
+      description: Workflow automation
+      icon: n8n.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: n8n
+    notes: "Workflow automation. NEVER rotate N8N_ENCRYPTION_KEY after first run. Uses the upstream n8nio/n8n image."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+      remove:
+        - cloudflare_dns_delete
+
+  - id: immich
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich_server
+    default_port: 2283
+    default_subdomain: immich
+    subdomain_key: immich
+    subdomain_placeholder: IMMICH_SUBDOMAIN
+    env_keys:
+      - IMMICH_DB_PASSWORD
+      - IMMICH_VERSION
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13005
+      container_port: 2283
+    caddy:
+      template: immich-public.caddy.tmpl
+    env_preserve_keys:
+      - IMMICH_DB_PASSWORD
+      - IMMICH_VERSION
+    data_dirs:
+      - data/immich/library
+      - data/immich/postgres
+    secrets:
+      IMMICH_DB_PASSWORD:
+        factory: password
+        length: 32
+      IMMICH_VERSION:
+        value: release
+    homepage:
+      category: Media
+      name: Immich
+      description: Photo and video library
+      icon: immich.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Immich
+      timeout: 60
+    notes: "Photo and video library. Optional. CPU-only v1 install using Immich's dedicated Postgres and Valkey services."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: transfer
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: dutchcoders/transfer.sh:latest-noroot
+    default_port: 8080
+    default_subdomain: transfer
+    subdomain_key: transfer
+    subdomain_placeholder: TRANSFER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    internal_access:
+      enabled: true
+      host_port: 13006
+      container_port: 8080
+    caddy:
+      template: transfer.caddy.tmpl
+    data_dirs:
+      - data/transfer
+    chown:
+      uid: 5000
+      gid: 5000
+    homepage:
+      category: File Sharing
+      name: transfer.sh
+      description: Public unauthenticated file sharing
+      icon: transfer-sh.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Easy file sharing
+    notes: "Self-hosted transfer.sh file sharing. Optional. Public unauthenticated upload endpoint by design; use only when the owner accepts the abuse risk. Stores uploads on the local filesystem."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: jellyfin
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jellyfin/jellyfin:latest
+    default_port: 8096
+    default_subdomain: jellyfin
+    subdomain_key: jellyfin
+    subdomain_placeholder: JELLYFIN_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    internal_access:
+      enabled: true
+      host_port: 13007
+      container_port: 8096
+    caddy:
+      template: jellyfin-public.caddy.tmpl
+    data_dirs:
+      - data/jellyfin/config
+      - data/jellyfin/cache
+      - data/jellyfin/media
+    homepage:
+      category: Media
+      name: Jellyfin
+      description: Media server
+      icon: jellyfin.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Jellyfin
+    notes: "Media server. Optional. Self-hosted streaming for movies, TV, music, and photos."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: plex
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: lscr.io/linuxserver/plex:latest
+    default_port: 32400
+    default_subdomain: plex
+    subdomain_key: plex
+    subdomain_placeholder: PLEX_SUBDOMAIN
+    env_keys:
+      - ADMIN_UID
+      - ADMIN_GID
+      - TZ
+      - PLEX_CLAIM
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13049
+      container_port: 32400
+      path: /web/index.html
+    caddy:
+      template: plex-public.caddy.tmpl
+    data_dirs:
+      - data/plex/config
+      - data/plex/media
+    homepage:
+      category: Media
+      name: Plex
+      description: Personal media server
+      icon: plex.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /web/index.html
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /web/index.html
+      expected_text: Plex
+      timeout: 60
+    notes: "Personal media server. Optional. Best-effort linuxserver.io image using bridge networking, not host networking; DLNA/GDM discovery and remote-access auto-mapping may be limited. Set PLEX_CLAIM before first start if the server must be claimed automatically. Media is stored under data/plex/media by default. No privileged hardware transcoding devices are mapped by default; add /dev/dri or GPU runtime support manually if accepted."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: filebrowser
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: filebrowser/filebrowser:latest
+    default_port: 80
+    default_subdomain: files
+    subdomain_key: filebrowser
+    subdomain_placeholder: FILEBROWSER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13009
+      container_port: 80
+    caddy:
+      template: filebrowser-public.caddy.tmpl
+    data_dirs:
+      - data/filebrowser/database
+      - data/filebrowser/srv
+    chown:
+      uid: 1000
+      gid: 1000
+    homepage:
+      category: File Sharing
+      name: File Browser
+      description: Browser-based file manager
+      icon: filebrowser.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: File Browser
+    notes: "Browser-based file manager. Optional. Stores managed files under Rakkib's data root."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: webdav
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: bytemark/webdav:latest
+    default_port: 80
+    default_subdomain: webdav
+    subdomain_key: webdav
+    subdomain_placeholder: WEBDAV_SUBDOMAIN
+    env_keys:
+      - WEBDAV_USERNAME
+      - WEBDAV_PASSWORD
+      - WEBDAV_AUTH_TYPE
+      - WEBDAV_LOCATION
+      - WEBDAV_ANONYMOUS_METHODS
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13010
+      container_port: 80
+    caddy:
+      template: webdav-public.caddy.tmpl
+    data_dirs:
+      - data/webdav/dav
+    extra_templates:
+      - src: templates/docker/webdav/index.html.tmpl
+        dst: data/webdav/dav/index.html
+    secrets:
+      WEBDAV_USERNAME:
+        value: admin
+      WEBDAV_PASSWORD:
+        factory: password
+      WEBDAV_AUTH_TYPE:
+        value: Basic
+      WEBDAV_LOCATION:
+        value: /
+      # Allow unauthenticated GET so `rakkib smoke webdav` (curl -fsSL) can succeed.
+      # Write methods remain authenticated by default.
+      WEBDAV_ANONYMOUS_METHODS:
+        value: GET,OPTIONS
+    homepage:
+      category: File Sharing
+      name: WebDAV
+      description: Simple WebDAV server (Apache)
+      icon: folder.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: "WebDAV endpoint"
+    notes: "Apache WebDAV server (bytemark/webdav). Optional. Data stored under data/webdav/dav."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: pingvin-share
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: stonith404/pingvin-share:latest
+    default_port: 3000
+    default_subdomain: pingvin
+    subdomain_key: pingvin-share
+    subdomain_placeholder: PINGVIN_SHARE_SUBDOMAIN
+    env_keys:
+      - ADMIN_UID
+      - ADMIN_GID
+      - PINGVIN_TRUST_PROXY
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13050
+      container_port: 3000
+    caddy:
+      template: pingvin-share-public.caddy.tmpl
+    data_dirs:
+      - data/pingvin-share/data
+      - data/pingvin-share/images
+    homepage:
+      category: File Sharing
+      name: Pingvin Share
+      description: WeTransfer-style file sharing
+      icon: pingvin-share.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Pingvin Share
+      timeout: 60
+    notes: "WeTransfer-style file sharing. Optional. Stores uploads under data/pingvin-share/data; upstream is archived, so treat updates as best-effort."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: it-tools
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/corentinth/it-tools:latest
+    default_port: 80
+    default_subdomain: tools
+    subdomain_key: it-tools
+    subdomain_placeholder: IT_TOOLS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13011
+      container_port: 80
+    caddy:
+      template: it-tools-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: IT-Tools
+      description: Handy browser-based developer utilities
+      icon: it-tools.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: IT Tools
+    notes: "Static developer utility collection. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: cyberchef
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/gchq/cyberchef:latest
+    default_port: 8080
+    default_subdomain: cyberchef
+    subdomain_key: cyberchef
+    subdomain_placeholder: CYBERCHEF_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13012
+      container_port: 8080
+    caddy:
+      template: cyberchef-public.caddy.tmpl
+    homepage:
+      category: Developer Tools
+      name: CyberChef
+      description: Browser-based data transformation toolkit
+      icon: cyberchef.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: CyberChef
+    notes: "Static data transformation toolkit. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: whoami
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: traefik/whoami:v1.11.0
+    default_port: 80
+    default_subdomain: whoami
+    subdomain_key: whoami
+    subdomain_placeholder: WHOAMI_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13013
+      container_port: 80
+    caddy:
+      template: whoami-public.caddy.tmpl
+    homepage:
+      category: Utility
+      name: Whoami
+      description: Minimal request debug page
+      icon: traefik.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: "Hostname:"
+    notes: "Tiny debug service that prints request details. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: pairdrop
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: lscr.io/linuxserver/pairdrop:latest
+    default_port: 3000
+    default_subdomain: pairdrop
+    subdomain_key: pairdrop
+    subdomain_placeholder: PAIRDROP_SUBDOMAIN
+    env_keys:
+      - ADMIN_UID
+      - ADMIN_GID
+      - TZ
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13014
+      container_port: 3000
+    caddy:
+      template: pairdrop-public.caddy.tmpl
+    data_dirs:
+      - data/pairdrop/config
+    homepage:
+      category: File Sharing
+      name: PairDrop
+      description: AirDrop-like file sharing
+      icon: pairdrop.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: PairDrop
+    notes: "AirDrop-like file sharing in the browser. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: moodist
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/remvze/moodist:v2.6.0
+    default_port: 8080
+    default_subdomain: moodist
+    subdomain_key: moodist
+    subdomain_placeholder: MOODIST_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13015
+      container_port: 8080
+    caddy:
+      template: moodist-public.caddy.tmpl
+    homepage:
+      category: Personal
+      name: Moodist
+      description: Ambient sounds for focus
+      icon: moodist.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Moodist
+    notes: "Ambient sounds web app. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: chatpad
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/deiucanta/chatpad:latest
+    default_port: 80
+    default_subdomain: chatpad
+    subdomain_key: chatpad
+    subdomain_placeholder: CHATPAD_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13017
+      container_port: 80
+    caddy:
+      template: chatpad-public.caddy.tmpl
+    homepage:
+      category: AI
+      name: Chatpad AI
+      description: ChatGPT UI (local-first)
+      icon: chatpad.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Chatpad
+    notes: "Chatpad AI web UI. Optional. Data is stored in the browser by default."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: lobe-chat
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: lobehub/lobe-chat:latest
+    default_port: 3210
+    default_subdomain: lobe
+    subdomain_key: lobe-chat
+    subdomain_placeholder: LOBE_CHAT_SUBDOMAIN
+    env_keys:
+      - OPENAI_API_KEY
+      - OPENAI_PROXY_URL
+      - OPENAI_MODEL_LIST
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13018
+      container_port: 3210
+    caddy:
+      template: lobe-chat-public.caddy.tmpl
+    homepage:
+      category: AI
+      name: Lobe Chat
+      description: ChatGPT / LLM web UI
+      icon: lobe-chat.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Lobe
+    notes: "Lobe Chat web UI. Optional. Configure model provider keys via env."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: open-webui
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/open-webui/open-webui:main
+    default_port: 8080
+    default_subdomain: webui
+    subdomain_key: open-webui
+    subdomain_placeholder: OPEN_WEBUI_SUBDOMAIN
+    env_keys:
+      - OLLAMA_BASE_URL
+      - OPENAI_API_KEY
+      - WEBUI_SECRET_KEY
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13019
+      container_port: 8080
+    caddy:
+      template: open-webui-public.caddy.tmpl
+    data_dirs:
+      - data/open-webui
+    secrets:
+      WEBUI_SECRET_KEY:
+        factory: password
+        length: 48
+    homepage:
+      category: AI
+      name: Open WebUI
+      description: UI for Ollama and OpenAI-compatible APIs
+      icon: open-webui.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    health_timeout: 300
+    smoke:
+      path: /
+      expected_text: Open WebUI
+    notes: "Open WebUI. Optional. Set OLLAMA_BASE_URL to reach your Ollama (host or remote)."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: forgejo
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: codeberg.org/forgejo/forgejo:15
+    default_port: 3000
+    default_subdomain: forgejo
+    subdomain_key: forgejo
+    subdomain_placeholder: FORGEJO_SUBDOMAIN
+    env_keys:
+      - FORGEJO_DB_PASS
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13020
+      container_port: 3000
+    caddy:
+      template: forgejo-public.caddy.tmpl
+    data_dirs:
+      - data/forgejo
+    chown:
+      uid: 1000
+      gid: 1000
+    secrets:
+      FORGEJO_DB_PASS:
+        factory: password
+        length: 32
+    postgres:
+      role: forgejo
+      db: forgejo_db
+      password_key: FORGEJO_DB_PASS
+      display_name: Forgejo
+    homepage:
+      category: Developer Tools
+      name: Forgejo
+      description: Self-hosted Git forge
+      icon: forgejo.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Forgejo
+    notes: "Self-hosted Git service (Forgejo). Optional. Uses shared PostgreSQL. Git-over-HTTPS supported; SSH is not exposed by default in Rakkib."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+      remove:
+        - cloudflare_dns_delete
+
+  - id: drawio
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: jgraph/drawio:latest
+    default_port: 8080
+    default_subdomain: drawio
+    subdomain_key: drawio
+    subdomain_placeholder: DRAWIO_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13021
+      container_port: 8080
+    caddy:
+      template: drawio-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Draw.io
+      description: Diagramming and whiteboarding
+      icon: draw-io.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: draw.io
+    notes: "Diagramming and whiteboarding app. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: excalidraw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: excalidraw/excalidraw:latest
+    default_port: 80
+    default_subdomain: excalidraw
+    subdomain_key: excalidraw
+    subdomain_placeholder: EXCALIDRAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13022
+      container_port: 80
+    caddy:
+      template: excalidraw-public.caddy.tmpl
+    homepage:
+      category: Diagram And Design
+      name: Excalidraw
+      description: Virtual whiteboard for sketching diagrams
+      icon: excalidraw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Excalidraw
+    notes: "Virtual whiteboard for sketching diagrams. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: openclaw
+    state_bucket: selected_services
+    required: false
+    optional: true
+    host_service: true
+    host_port: true
+    default_port: 18789
+    default_subdomain: claw
+    subdomain_key: openclaw
+    subdomain_placeholder: OPENCLAW_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    internal_access:
+      enabled: true
+      host_port: 18789
+      container_port: 18789
+    caddy:
+      template: openclaw-public.caddy.tmpl
+    homepage:
+      category: AI
+      name: OpenClaw
+      description: Personal AI assistant gateway
+      icon: openclaw.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /healthz
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /healthz
+      expected_text: ok
+    hooks:
+      pre_start:
+        - openclaw_install
+      post_start:
+        - openclaw_gateway_restart
+      restart:
+        - openclaw_gateway_restart
+      remove:
+        - openclaw_gateway_uninstall
+        - cloudflare_dns_delete
+    notes: "Personal AI assistant gateway. Runs as a systemd user service on the host (not in Docker). Proxy via Caddy to host port 18789."
+
+  - id: hermes-agent
+    state_bucket: selected_services
+    required: false
+    optional: true
+    resource_requirements:
+      min_ram_mb: 4096
+      recommended_ram_mb: 8192
+      min_disk_gb: 12
+      recommended_disk_gb: 25
+      install_warning: "Pulls a very large upstream image; free space is required on Docker's root filesystem during extraction."
+    image: nousresearch/hermes-agent:latest
+    default_port: 9119
+    default_subdomain: hermes
+    subdomain_key: hermes-agent
+    subdomain_placeholder: HERMES_AGENT_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13016
+      container_port: 9119
+      compose_service: hermes-agent-dashboard
+    caddy:
+      template: hermes-agent-public.caddy.tmpl
+    data_dirs:
+      - data/hermes-agent
+    homepage:
+      category: AI
+      name: Hermes Agent
+      description: Self-improving AI agent (NousResearch)
+      icon: hermes.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Hermes
+    notes: "Hermes Agent dashboard and gateway. WARNING: dashboard may expose secrets; do not expose publicly without authentication."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: claude
+    state_bucket: selected_services
+    required: false
+    optional: true
+    host_service: true
+    host_port: false
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    caddy:
+      template: null
+    installed_check: "command -v claude"
+    hooks:
+      pre_start:
+        - claude_install
+      remove:
+        - claude_uninstall
+    homepage:
+      category: AI
+      name: Claude
+      description: Claude Code CLI
+      icon: claude.png
+    notes: "Installs Claude Code CLI via https://claude.ai/install.sh. Optional. Not exposed via Caddy."
+
+  - id: codex
+    state_bucket: selected_services
+    required: false
+    optional: true
+    host_service: true
+    host_port: false
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    caddy:
+      template: null
+    installed_check: "command -v codex"
+    hooks:
+      pre_start:
+        - codex_install
+      remove:
+        - codex_uninstall
+    homepage:
+      category: AI
+      name: Codex
+      description: OpenAI Codex CLI
+      icon: codex.png
+    notes: "Installs @openai/codex via npm global install. Optional. Not exposed via Caddy."
+
+  - id: cheshire-cat-ai
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/cheshire-cat-ai/core:latest
+    container_name: cheshire-cat-ai
+    default_port: 80
+    default_subdomain: cat
+    subdomain_key: cheshire-cat-ai
+    subdomain_placeholder: CHESHIRE_CAT_AI_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13023
+      container_port: 80
+      compose_service: cheshire-cat-ai
+    caddy:
+      template: cheshire-cat-ai-public.caddy.tmpl
+    data_dirs:
+      - data/cheshire-cat-ai/data
+      - data/cheshire-cat-ai/plugins
+      - data/cheshire-cat-ai/static
+      - data/cheshire-cat-ai/qdrant
+    homepage:
+      category: AI
+      name: Cheshire Cat AI
+      description: AI agent microservice
+      icon: cheshire-cat-ai.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /admin
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /admin
+      expected_text: Login
+    notes: "AI agent microservice with an admin UI and REST API. Public root redirects to /admin and ships with a Qdrant sidecar for RAG. Optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: flowise
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    default_port: 3000
+    default_subdomain: flowise
+    subdomain_key: flowise
+    subdomain_placeholder: FLOWISE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13024
+      container_port: 3000
+    caddy:
+      template: flowise-public.caddy.tmpl
+    data_dirs:
+      - data/flowise/.flowise
+    homepage:
+      category: AI
+      name: Flowise
+      description: Visual LLM app and agent builder
+      icon: flowise.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Flowise
+    notes: "Visual AI agent builder. Optional. Uses local persistent storage under /root/.flowise."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: serge
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/serge-chat/serge:latest
+    container_name: serge
+    default_port: 8008
+    default_subdomain: serge
+    subdomain_key: serge
+    subdomain_placeholder: SERGE_SUBDOMAIN
+    env_keys:
+      - SERGE_JWT_SECRET
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13025
+      container_port: 8008
+    caddy:
+      template: serge-public.caddy.tmpl
+    secrets:
+      SERGE_JWT_SECRET:
+        factory: password
+    data_dirs:
+      - data/serge/weights
+      - data/serge/db
+    homepage:
+      category: AI
+      name: Serge
+      description: Self-hosted chat UI for local LLMs
+      icon: serge.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Serge
+    notes: "Web UI for chatting with local llama.cpp-backed models. Optional. Requires substantial RAM/CPU for larger models."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: anse
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ddiu8081/anse:latest
+    container_name: anse
+    default_port: 3000
+    default_subdomain: anse
+    subdomain_key: anse
+    subdomain_placeholder: ANSE_SUBDOMAIN
+    env_keys:
+      - OPENAI_API_KEY
+      - OPENAI_API_BASE_URL
+      - HEAD_SCRIPTS
+      - ANSE_SECRET_KEY
+      - SITE_PASSWORD
+      - OPENAI_API_MODEL
+    env_preserve_keys:
+      - ANSE_SECRET_KEY
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13026
+      container_port: 3000
+    caddy:
+      template: anse-public.caddy.tmpl
+    secrets:
+      ANSE_SECRET_KEY:
+        factory: password
+        length: 48
+    homepage:
+      category: AI
+      name: Anse
+      description: Optimized UI for AI chats (OpenAI-compatible)
+      icon: anse.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Anse
+    notes: "AI chat UI (Astro) supporting OpenAI-compatible backends. Optional. Set OPENAI_API_KEY in .env or via the UI settings."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: homer
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: b4bz/homer:latest
+    default_port: 8080
+    default_subdomain: homer
+    subdomain_key: homer
+    subdomain_placeholder: HOMER_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13027
+      container_port: 8080
+    caddy:
+      template: homer-public.caddy.tmpl
+    data_dirs:
+      - data/homer/assets
+    chown:
+      uid: 1000
+      gid: 1000
+    homepage:
+      category: Dashboards
+      name: Homer
+      description: Static server homepage
+      icon: homer.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Homer
+    notes: "Static dashboard. Optional. config.yml is seeded by the image on first run via INIT_ASSETS and is user-editable thereafter."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: dozzle
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: amir20/dozzle:latest
+    default_port: 8080
+    default_subdomain: dozzle
+    subdomain_key: dozzle
+    subdomain_placeholder: DOZZLE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13028
+      container_port: 8080
+    caddy:
+      template: dozzle-public.caddy.tmpl
+    homepage:
+      category: Monitoring
+      name: Dozzle
+      description: Container log viewer
+      icon: docker.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Dozzle
+    notes: "Container log viewer. Mounts Docker socket read-only. Optional. Exposes all container logs — restrict access at the Caddy or network layer if needed."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: grafana
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: grafana/grafana:12.1.1
+    default_port: 3000
+    default_subdomain: grafana
+    subdomain_key: grafana
+    subdomain_placeholder: GRAFANA_SUBDOMAIN
+    env_keys:
+      - GRAFANA_ADMIN_PASSWORD
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13045
+      container_port: 3000
+    caddy:
+      template: grafana-public.caddy.tmpl
+    data_dirs:
+      - data/grafana
+    chown:
+      uid: 472
+      gid: 472
+    secrets:
+      GRAFANA_ADMIN_PASSWORD:
+        factory: password
+    homepage:
+      category: Monitoring
+      name: Grafana
+      description: Metrics dashboards and visualisation
+      icon: grafana.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Grafana
+      timeout: 60
+    notes: "Metrics dashboard and visualisation platform. Optional. Uses local SQLite storage under data/grafana; log in as admin with the generated GRAFANA_ADMIN_PASSWORD."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: homarr
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/homarr-labs/homarr:latest
+    default_port: 7575
+    health_timeout: 180
+    default_subdomain: homarr
+    subdomain_key: homarr
+    subdomain_placeholder: HOMARR_SUBDOMAIN
+    env_keys:
+      - HOMARR_SECRET_ENCRYPTION_KEY
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13008
+      container_port: 7575
+    caddy:
+      template: homarr-public.caddy.tmpl
+    data_dirs:
+      - data/homarr/appdata
+    secrets:
+      HOMARR_SECRET_ENCRYPTION_KEY:
+        factory: hex_key
+        length: 64
+    homepage:
+      category: Dashboards
+      name: Homarr
+      description: Modern server dashboard
+      icon: homarr.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Homarr
+      timeout: 30
+    notes: "Modern server dashboard. Optional. Mounts Docker socket read-only for container integrations; Docker socket access can still expose host control, so restrict access at the Caddy or network layer. Uses a generated SECRET_ENCRYPTION_KEY persisted in state."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: glance
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: glanceapp/glance:latest
+    default_port: 8080
+    default_subdomain: glance
+    subdomain_key: glance
+    subdomain_placeholder: GLANCE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13029
+      container_port: 8080
+    caddy:
+      template: glance-public.caddy.tmpl
+    data_dirs:
+      - data/glance
+    extra_templates:
+      - src: templates/docker/glance/glance.yml.tmpl
+        dst: data/glance/glance.yml
+    homepage:
+      category: Dashboards
+      name: Glance
+      description: Glanceable self-hosted dashboard
+      icon: glance.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Glance
+    notes: "Glanceable dashboard. Optional. glance.yml is seeded via extra_templates on every deploy — back up manual edits before running rakkib pull."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: dashy
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: lissy93/dashy:latest
+    default_port: 8080
+    default_subdomain: dashy
+    subdomain_key: dashy
+    subdomain_placeholder: DASHY_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13030
+      container_port: 8080
+    caddy:
+      template: dashy-public.caddy.tmpl
+    data_dirs:
+      - data/dashy
+    extra_templates:
+      - src: templates/docker/dashy/conf.yml.tmpl
+        dst: data/dashy/conf.yml
+    chown:
+      uid: 1000
+      gid: 1000
+    homepage:
+      category: Dashboards
+      name: Dashy
+      description: Highly customisable dashboard
+      icon: dashy.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Dashy
+    notes: "Highly customisable dashboard. Optional. conf.yml is seeded via extra_templates on every deploy; edit data/dashy/conf.yml to customise."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: beszel
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: henrygd/beszel:latest
+    default_port: 8090
+    default_subdomain: beszel
+    subdomain_key: beszel
+    subdomain_placeholder: BESZEL_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13031
+      container_port: 8090
+    caddy:
+      template: beszel-public.caddy.tmpl
+    data_dirs:
+      - data/beszel/beszel_data
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Beszel
+    notes: "Lightweight server monitoring hub. Optional. Agents connect separately; hub listens on 8090."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: glances
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: nicolargo/glances:latest-full
+    default_port: 61208
+    default_subdomain: glances
+    subdomain_key: glances
+    subdomain_placeholder: GLANCES_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13042
+      container_port: 61208
+    caddy:
+      template: glances-public.caddy.tmpl
+    homepage:
+      category: Monitoring
+      name: Glances
+      description: Host and container metrics dashboard
+      icon: glances.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Glances
+      timeout: 60
+    notes: "Host and container metrics dashboard. Optional. Runs with host PID access and mounts the Docker socket read-only; Docker socket access can still expose host control, so restrict access at the Caddy or network layer."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: autoheal
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: willfarrell/autoheal:latest
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    homepage:
+      category: Infrastructure
+      name: Autoheal
+      description: Restart unhealthy containers
+      icon: docker.png
+    notes: "Auto-restart unhealthy containers. Optional. Requires mounting the Docker socket (privileged). Only containers with a HEALTHCHECK and label com.rakkib.autoheal=true will be restarted by default."
+
+  - id: watchtower
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: containrrr/watchtower:1.7.1
+    default_port: null
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    homepage:
+      category: Infrastructure
+      name: Watchtower
+      description: Auto-update containers
+      icon: docker.png
+    notes: "Auto-update container images and restart containers. Optional. Requires mounting the Docker socket (privileged). Uses label-enable + scope by default; the upstream project is archived, so treat this as best-effort."
+
+  - id: freshrss
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: freshrss/freshrss:latest
+    default_port: 80
+    default_subdomain: freshrss
+    subdomain_key: freshrss
+    subdomain_placeholder: FRESHRSS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13032
+      container_port: 80
+    caddy:
+      template: freshrss-public.caddy.tmpl
+    data_dirs:
+      - data/freshrss/data
+      - data/freshrss/extensions
+    chown:
+      uid: 33
+      gid: 33
+    homepage:
+      category: News
+      name: FreshRSS
+      description: RSS feed aggregator
+      icon: freshrss.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: FreshRSS
+    notes: "Self-hosted RSS feed aggregator. Optional. Uses built-in SQLite by default; Postgres/MySQL are optional."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: openbooks
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: evanbuss/openbooks:4.5.0
+    default_port: 80
+    default_subdomain: openbooks
+    subdomain_key: openbooks
+    subdomain_placeholder: OPENBOOKS_SUBDOMAIN
+    env_keys:
+      - OPENBOOKS_IRC_NAME
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13044
+      container_port: 80
+    caddy:
+      template: openbooks-public.caddy.tmpl
+    data_dirs:
+      - data/openbooks/books
+    homepage:
+      category: Books
+      name: OpenBooks
+      description: Search and download ebooks
+      icon: books.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: OpenBooks
+    notes: "Search and download ebooks from IRC Highway. Optional. Persists downloaded books under data/openbooks/books."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: actual-budget
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: actualbudget/actual-server:latest
+    default_port: 5006
+    default_subdomain: actual
+    subdomain_key: actual-budget
+    subdomain_placeholder: ACTUAL_BUDGET_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13033
+      container_port: 5006
+    caddy:
+      template: actual-budget-public.caddy.tmpl
+    data_dirs:
+      - data/actual-budget
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Actual
+    notes: "Self-hosted Actual Budget sync server. Optional. Data stored under /data inside the container."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: wallos
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: bellamy/wallos:latest
+    default_port: 80
+    default_subdomain: wallos
+    subdomain_key: wallos
+    subdomain_placeholder: WALLOS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13051
+      container_port: 80
+    caddy:
+      template: wallos-public.caddy.tmpl
+    data_dirs:
+      - data/wallos/db
+      - data/wallos/logos
+    homepage:
+      category: Finance
+      name: Wallos
+      description: Subscription and expense tracker
+      icon: wallos.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Wallos
+    notes: "Personal subscription and expense tracker. Optional. Stores its SQLite database and uploaded logos under data/wallos."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: rsshub
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: diygod/rsshub:latest
+    default_port: 1200
+    default_subdomain: rsshub
+    subdomain_key: rsshub
+    subdomain_placeholder: RSSHUB_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13034
+      container_port: 1200
+      compose_service: rsshub
+    caddy:
+      template: rsshub-public.caddy.tmpl
+    data_dirs:
+      - data/rsshub/redis
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /healthz
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /healthz
+      expected_text: ok
+    notes: "RSS generator (RSSHub). Optional. Deployed with Redis cache + browserless/chrome for broader route support."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: vaultwarden
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: vaultwarden/server:latest
+    default_port: 80
+    default_subdomain: vault
+    subdomain_key: vaultwarden
+    subdomain_placeholder: VAULTWARDEN_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13035
+      container_port: 80
+    caddy:
+      template: vaultwarden-public.caddy.tmpl
+    data_dirs:
+      - data/vaultwarden
+    secrets:
+      VAULTWARDEN_ADMIN_TOKEN:
+        factory: password
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Vaultwarden
+    notes: "Bitwarden-compatible password manager (Vaultwarden). Optional. DOMAIN should match the public https URL when behind a reverse proxy."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: adguard
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: adguard/adguardhome:latest
+    default_port: 3000
+    default_subdomain: adguard
+    subdomain_key: adguard
+    subdomain_placeholder: ADGUARD_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13036
+      container_port: 3000
+    caddy:
+      template: adguard-public.caddy.tmpl
+    data_dirs:
+      - data/adguard/work
+      - data/adguard/conf
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: AdGuard Home
+    notes: "Network-wide ad blocker (AdGuard Home). Optional. Web UI is reverse proxied via Caddy. DNS ports are not bound by default to avoid conflicts with the host resolver; bind 53/tcp+udp manually if you want LAN clients to use AdGuard for DNS."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: gladys-assistant
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: gladysassistant/gladys:v4
+    default_port: 80
+    health_timeout: 180
+    default_subdomain: gladys
+    subdomain_key: gladys-assistant
+    subdomain_placeholder: GLADYS_ASSISTANT_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13046
+      container_port: 80
+    caddy:
+      template: gladys-assistant-public.caddy.tmpl
+    data_dirs:
+      - data/gladys-assistant
+    homepage:
+      category: Home Automation
+      name: Gladys Assistant
+      description: Smart home dashboard and automation
+      icon: gladys-assistant.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Gladys
+      timeout: 120
+    notes: "Smart home dashboard and automation platform. Optional. Runs privileged and mounts /var/run/docker.sock, /dev, and /run/udev so integrations can discover/control local devices and Docker; this can expose host control, so restrict access at the Caddy or network layer. Rakkib uses bridged networking instead of upstream host networking to avoid binding host port 80."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: whoogle
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: benbusby/whoogle-search:latest
+    default_port: 5000
+    default_subdomain: whoogle
+    subdomain_key: whoogle
+    subdomain_placeholder: WHOOGLE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13037
+      container_port: 5000
+    caddy:
+      template: whoogle-public.caddy.tmpl
+    data_dirs:
+      - data/whoogle/config
+    chown:
+      uid: 927
+      gid: 927
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Whoogle Search
+    notes: "Privacy-respecting metasearch engine. Optional. Stores container /config under the Rakkib data root."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: stirling-pdf
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:latest
+    default_port: 8080
+    health_timeout: 300
+    default_subdomain: pdf
+    subdomain_key: stirling-pdf
+    subdomain_placeholder: STIRLING_PDF_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13038
+      container_port: 8080
+    caddy:
+      template: stirling-pdf-public.caddy.tmpl
+    data_dirs:
+      - data/stirling-pdf/tessdata
+      - data/stirling-pdf/config
+      - data/stirling-pdf/logs
+    homepage:
+      category: Documents
+      name: Stirling-PDF
+      description: Self-hosted PDF toolkit
+      icon: stirling-pdf.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Stirling
+    notes: "Browser-based PDF toolbox. Optional. Consider restricting access; uploaded documents are processed server-side."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: mealie
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/mealie-recipes/mealie:latest
+    default_port: 9000
+    default_subdomain: mealie
+    subdomain_key: mealie
+    subdomain_placeholder: MEALIE_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13039
+      container_port: 9000
+    caddy:
+      template: mealie-public.caddy.tmpl
+    data_dirs:
+      - data/mealie/data
+    homepage:
+      category: Lifestyle
+      name: Mealie
+      description: Recipe manager and meal planner
+      icon: mealie.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Mealie
+      timeout: 120
+    notes: "Recipe manager. Optional. Stores its SQLite database and uploads under data/mealie/data."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: dailytxt
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: phitux/dailytxt:2.6.1
+    default_port: 80
+    default_subdomain: dailytxt
+    subdomain_key: dailytxt
+    subdomain_placeholder: DAILYTXT_SUBDOMAIN
+    env_keys:
+      - DAILYTXT_SECRET_TOKEN
+      - DAILYTXT_ADMIN_PASSWORD
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13043
+      container_port: 80
+    caddy:
+      template: dailytxt-public.caddy.tmpl
+    data_dirs:
+      - data/dailytxt
+    secrets:
+      DAILYTXT_SECRET_TOKEN:
+        factory: password
+        length: 48
+      DAILYTXT_ADMIN_PASSWORD:
+        factory: password
+    homepage:
+      category: Lifestyle
+      name: DailyTxT
+      description: Encrypted diary and journal
+      icon: dailytxt.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: DailyTxT
+    notes: "Encrypted diary and journal web app. Optional. Stores encrypted journal data and uploads under data/dailytxt; registration is enabled initially for first-user setup."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: notemark
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/enchant97/note-mark-aio:0.19.4
+    default_port: 8080
+    default_subdomain: notemark
+    subdomain_key: notemark
+    subdomain_placeholder: NOTEMARK_SUBDOMAIN
+    env_keys:
+      - NOTEMARK_JWT_SECRET
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13048
+      container_port: 8080
+    caddy:
+      template: notemark-public.caddy.tmpl
+    data_dirs:
+      - data/notemark
+    secrets:
+      NOTEMARK_JWT_SECRET:
+        factory: password
+        length: 48
+    homepage:
+      category: Documents
+      name: Note Mark
+      description: Markdown notes app
+      icon: markdown.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Note Mark
+      timeout: 60
+    notes: "Fast web-based Markdown notes app. Optional. Stores SQLite database, notes, and uploaded assets under data/notemark. Internal signups are enabled initially for first-user setup."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: memos
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: neosmemo/memos:stable
+    default_port: 5230
+    default_subdomain: memos
+    subdomain_key: memos
+    subdomain_placeholder: MEMOS_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13052
+      container_port: 5230
+    caddy:
+      template: memos-public.caddy.tmpl
+    data_dirs:
+      - data/memos
+    homepage:
+      category: Documents
+      name: Memos
+      description: Lightweight note-taking
+      icon: memos.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Memos
+    notes: "Self-hosted note-taking app. Optional. Stores SQLite database and uploaded assets under data/memos."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: gitea
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: gitea/gitea:latest
+    default_port: 3000
+    default_subdomain: gitea
+    subdomain_key: gitea
+    subdomain_placeholder: GITEA_SUBDOMAIN
+    env_keys:
+      - GITEA_DB_PASS
+    depends_on: [postgres]
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13040
+      container_port: 3000
+    caddy:
+      template: gitea-public.caddy.tmpl
+    data_dirs:
+      - data/gitea
+    chown:
+      uid: 1000
+      gid: 1000
+    secrets:
+      GITEA_DB_PASS:
+        factory: password
+    postgres:
+      role: gitea
+      db: gitea_db
+      password_key: GITEA_DB_PASS
+      display_name: Gitea
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: Gitea
+    notes: "Self-hosted Git service (Gitea). Optional. HTTP(S) only by default (no SSH port exposed); clone/push over HTTPS or extend compose if SSH is required."
+    hooks:
+      pre_start:
+        - service_postgres_login_preflight
+      remove:
+        - cloudflare_dns_delete
+
+  - id: privatebin
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: privatebin/nginx-fpm-alpine:stable
+    default_port: 8080
+    default_subdomain: privatebin
+    subdomain_key: privatebin
+    subdomain_placeholder: PRIVATEBIN_SUBDOMAIN
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13041
+      container_port: 8080
+    caddy:
+      template: privatebin-public.caddy.tmpl
+    data_dirs:
+      - data/privatebin
+    # Upstream image expects /srv/data to be owned by UID 65534 / GID 82.
+    chown:
+      uid: 65534
+      gid: 82
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: PrivateBin
+    notes: "Encrypted pastebin (PrivateBin). Optional. Uses privatebin/nginx-fpm-alpine with filesystem storage persisted under /srv/data."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: esphome
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/esphome/esphome:stable
+    default_port: 6052
+    default_subdomain: esphome
+    subdomain_key: esphome
+    subdomain_placeholder: ESPHOME_SUBDOMAIN
+    env_keys:
+      - TZ
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13047
+      container_port: 6052
+    caddy:
+      template: esphome-public.caddy.tmpl
+    data_dirs:
+      - data/esphome/config
+    homepage:
+      category: Home Automation
+      name: ESPHome
+      description: ESP device firmware dashboard
+      icon: esphome.png
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /
+      expected_text: ESPHome
+      timeout: 120
+    notes: "ESPHome dashboard for building and managing ESP device firmware. Optional. Runs without host networking or device mounts by default; LAN discovery, USB serial flashing, and direct hardware access may require deliberate host networking or device passthrough changes, which can expose host network/device control risks."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
+  - id: matter-server
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ghcr.io/matter-js/python-matter-server:stable
+    container_name: matter-server
+    default_port: 5580
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: false
+    caddy:
+      template: null
+    data_dirs:
+      - data/matter-server
+    homepage:
+      category: Home Automation
+      name: Matter Server
+      description: Matter controller WebSocket server
+      icon: home-assistant.png
+    notes: "Matter controller WebSocket server. Optional. Uses Docker host networking and apparmor=unconfined for mDNS/IPv6 link-local discovery; no Caddy route is created. Real Matter commissioning requires a flat IPv6-capable LAN with multicast working, suitable Thread border routers for Thread devices, and optional Bluetooth/D-Bus hardware for local commissioning."
+
+  - id: ollama-cpu
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ollama/ollama:latest
+    default_port: 11434
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    internal_access:
+      enabled: true
+      host_port: 13434
+      container_port: 11434
+    data_dirs:
+      - data/ollama-cpu
+    notes: "Ollama LLM runtime (CPU). Optional. Binds API port 11434 to 127.0.0.1 only (not exposed via Caddy). Use this service if you do not have a supported GPU runtime."
+
+  - id: ollama-amd
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ollama/ollama:rocm
+    default_port: 11434
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    internal_access:
+      enabled: true
+      host_port: 13435
+      container_port: 11434
+    data_dirs:
+      - data/ollama-amd
+    notes: "Ollama LLM runtime (AMD ROCm). Optional. Requires ROCm-capable host drivers and maps /dev/kfd + /dev/dri into the container. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy)."
+
+  - id: ollama-nvidia
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: ollama/ollama:latest
+    default_port: 11434
+    default_subdomain: null
+    subdomain_key: null
+    subdomain_placeholder: null
+    env_keys: []
+    depends_on: []
+    host_service: false
+    host_port: true
+    internal_access:
+      enabled: true
+      host_port: 13436
+      container_port: 11434
+    data_dirs:
+      - data/ollama-nvidia
+    notes: "Ollama LLM runtime (NVIDIA GPU). Optional. Requires NVIDIA Container Toolkit on the host; compose requests an NVIDIA GPU device reservation. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy)."

@@ -1,0 +1,5 @@
+	# ESPHome firmware dashboard
+	@esphome host {{ESPHOME_SUBDOMAIN}}.{{DOMAIN}}
+	handle @esphome {
+		reverse_proxy esphome:6052
+	}

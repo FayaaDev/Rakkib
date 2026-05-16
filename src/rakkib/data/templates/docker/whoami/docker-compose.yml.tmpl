@@ -1,0 +1,11 @@
+services:
+  whoami:
+    image: ${WHOAMI_IMAGE:-traefik/whoami:v1.11.0}
+    container_name: whoami
+    restart: unless-stopped
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

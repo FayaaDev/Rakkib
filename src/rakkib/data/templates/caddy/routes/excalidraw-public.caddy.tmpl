@@ -1,0 +1,5 @@
+	# Excalidraw whiteboard
+	@excalidraw host {{EXCALIDRAW_SUBDOMAIN}}.{{DOMAIN}}
+	handle @excalidraw {
+		reverse_proxy excalidraw:80
+	}

@@ -1,0 +1,18 @@
+services:
+  lobe-chat:
+    image: ${LOBE_CHAT_IMAGE:-lobehub/lobe-chat:latest}
+    container_name: lobe-chat
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Lobe Chat images typically honor PORT; keep consistent with Caddy route.
+      - PORT=${LOBE_CHAT_PORT:-3210}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_PROXY_URL=${OPENAI_PROXY_URL:-}
+      - OPENAI_MODEL_LIST=${OPENAI_MODEL_LIST:-}
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

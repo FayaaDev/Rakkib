@@ -1,0 +1,18 @@
+services:
+  wallos:
+    image: ${WALLOS_IMAGE:-bellamy/wallos:latest}
+    container_name: wallos
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - {{DATA_ROOT}}/data/wallos/db:/var/www/html/db
+      - {{DATA_ROOT}}/data/wallos/logos:/var/www/html/images/uploads/logos
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

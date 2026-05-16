@@ -1,0 +1,5 @@
+	# Actual Budget (Actual server)
+	@actual-budget host {{ACTUAL_BUDGET_SUBDOMAIN}}.{{DOMAIN}}
+	handle @actual-budget {
+		reverse_proxy actual-budget:5006
+	}

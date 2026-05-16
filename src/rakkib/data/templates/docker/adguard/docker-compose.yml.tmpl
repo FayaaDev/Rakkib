@@ -1,0 +1,21 @@
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    restart: unless-stopped
+    env_file:
+      - .env
+    # NOTE: DNS ports (53/tcp+udp) are intentionally NOT bound by default.
+    # Many hosts already have a local resolver bound to 53 (e.g. systemd-resolved).
+    # If you want AdGuard to serve LAN DNS, add:
+    #   - "53:53/tcp"
+    #   - "53:53/udp"
+    volumes:
+      - {{DATA_ROOT}}/data/adguard/work:/opt/adguardhome/work
+      - {{DATA_ROOT}}/data/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

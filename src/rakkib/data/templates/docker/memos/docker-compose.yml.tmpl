@@ -1,0 +1,15 @@
+services:
+  memos:
+    image: ${MEMOS_IMAGE:-neosmemo/memos:stable}
+    container_name: memos
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/memos:/var/opt/memos
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

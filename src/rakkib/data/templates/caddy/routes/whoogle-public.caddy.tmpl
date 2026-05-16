@@ -1,0 +1,5 @@
+	# Whoogle Search
+	@whoogle host {{WHOOGLE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @whoogle {
+		reverse_proxy whoogle:5000
+	}

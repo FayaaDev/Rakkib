@@ -1,0 +1,5 @@
+	# Uptime Kuma monitoring
+	@uptime-kuma host {{UPTIME_KUMA_SUBDOMAIN}}.{{DOMAIN}}
+	handle @uptime-kuma {
+		reverse_proxy uptime-kuma:3001
+	}

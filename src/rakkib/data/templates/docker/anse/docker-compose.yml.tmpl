@@ -1,0 +1,13 @@
+services:
+  anse:
+    image: ddiu8081/anse:latest
+    container_name: anse
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

@@ -1,0 +1,32 @@
+services:
+  cheshire-cat-ai:
+    image: ghcr.io/cheshire-cat-ai/core:latest
+    container_name: cheshire-cat-ai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Wire the in-stack Qdrant sidecar by default.
+      - CCAT_QDRANT_HOST=qdrant
+      - CCAT_QDRANT_PORT=6333
+    depends_on:
+      - qdrant
+    volumes:
+      - {{DATA_ROOT}}/data/cheshire-cat-ai/data:/app/cat/data
+      - {{DATA_ROOT}}/data/cheshire-cat-ai/plugins:/app/cat/plugins
+      - {{DATA_ROOT}}/data/cheshire-cat-ai/static:/app/cat/static
+    networks:
+      - {{DOCKER_NET}}
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cheshire-cat-ai-qdrant
+    restart: unless-stopped
+    volumes:
+      - {{DATA_ROOT}}/data/cheshire-cat-ai/qdrant:/qdrant/storage
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

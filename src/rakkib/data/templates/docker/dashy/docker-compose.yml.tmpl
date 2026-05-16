@@ -1,0 +1,17 @@
+services:
+  dashy:
+    image: lissy93/dashy:latest
+    container_name: dashy
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - UID=1000
+      - GID=1000
+    volumes:
+      - {{DATA_ROOT}}/data/dashy:/app/user-data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

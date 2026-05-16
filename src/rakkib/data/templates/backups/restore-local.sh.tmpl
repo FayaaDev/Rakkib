@@ -1,0 +1,217 @@
+#!/bin/bash
+
+set -Eeuo pipefail
+
+DATA_ROOT="{{DATA_ROOT}}"
+BACKUP_ROOT="{{BACKUP_DIR}}"
+SERVER_NAME="{{SERVER_NAME}}"
+YES=false
+RESTORE_SECRETS=false
+DRY_RUN=false
+LATEST=false
+BACKUP_SOURCE=""
+
+usage() {
+    cat <<'USAGE'
+Usage: restore-local.sh <backup_dir> [--yes] [--restore-secrets] [--dry-run]
+       restore-local.sh --latest [--yes] [--restore-secrets] [--dry-run]
+
+Restores a Rakkib local backup. Secrets are not restored unless
+--restore-secrets is provided.
+USAGE
+}
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --latest)
+            LATEST=true
+            shift
+            ;;
+        --yes)
+            YES=true
+            shift
+            ;;
+        --restore-secrets)
+            RESTORE_SECRETS=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --*)
+            printf 'Unknown argument: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            if [[ -n "$BACKUP_SOURCE" ]]; then
+                printf 'Only one backup directory may be provided\n' >&2
+                exit 2
+            fi
+            BACKUP_SOURCE="$1"
+            shift
+            ;;
+    esac
+done
+
+latest_backup() {
+    local dir
+    for dir in "${BACKUP_ROOT}"/rakkib_${SERVER_NAME}_*; do
+        [[ -d "$dir" ]] || continue
+        basename "$dir"
+    done | sort -r | sed -n '1p'
+}
+
+manifest_value() {
+    local key="$1"
+    sed -n "s/^[[:space:]]*\"${key}\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" "${BACKUP_SOURCE}/manifest.json" | sed -n '1p'
+}
+
+if [[ "$LATEST" == true && -n "$BACKUP_SOURCE" ]]; then
+    printf 'Use either --latest or <backup_dir>, not both\n' >&2
+    exit 2
+fi
+
+if [[ "$LATEST" == true ]]; then
+    latest="$(latest_backup)"
+    [[ -n "$latest" ]] || { printf 'No backups found in %s\n' "$BACKUP_ROOT" >&2; exit 1; }
+    BACKUP_SOURCE="${BACKUP_ROOT}/${latest}"
+fi
+
+[[ -n "$BACKUP_SOURCE" ]] || { usage >&2; exit 2; }
+[[ -d "$BACKUP_SOURCE" ]] || { printf 'Backup directory not found: %s\n' "$BACKUP_SOURCE" >&2; exit 1; }
+[[ -f "${BACKUP_SOURCE}/manifest.json" ]] || { printf 'manifest.json not found in %s\n' "$BACKUP_SOURCE" >&2; exit 1; }
+
+MANIFEST_SERVER="$(manifest_value server_name)"
+MANIFEST_CREATED="$(manifest_value created)"
+
+print_plan() {
+    printf 'Restore source: %s\n' "$BACKUP_SOURCE"
+    printf 'Manifest server: %s\n' "${MANIFEST_SERVER:-unknown}"
+    printf 'Manifest created: %s\n' "${MANIFEST_CREATED:-unknown}"
+    printf 'Target data root: %s\n' "$DATA_ROOT"
+    printf 'Will overwrite restored docker/data/docs files under %s.\n' "$DATA_ROOT"
+    if [[ -f "${BACKUP_SOURCE}/postgres.sql.gz" ]]; then
+        printf 'Will import postgres.sql.gz into the postgres container after it starts.\n'
+    fi
+    if [[ -f "${BACKUP_SOURCE}/secrets.tar.gz" ]]; then
+        if [[ "$RESTORE_SECRETS" == true ]]; then
+            printf 'Will restore secrets.tar.gz because --restore-secrets was provided.\n'
+        else
+            printf 'Will skip secrets.tar.gz. Re-run with --restore-secrets to restore .env and secrets files.\n'
+        fi
+    fi
+}
+
+confirm_restore() {
+    [[ "$YES" == true ]] && return 0
+    local answer
+    printf 'Proceed with restore? This can overwrite local service state. [y/N] '
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES) return 0 ;;
+        *) printf 'Restore cancelled\n'; exit 1 ;;
+    esac
+}
+
+compose_down() {
+    local service="$1"
+    local dir="${DATA_ROOT}/docker/${service}"
+    [[ -f "${dir}/docker-compose.yml" ]] || return 0
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] docker compose down in %s\n' "$dir"
+    else
+        (cd "$dir" && docker compose down)
+    fi
+}
+
+compose_up() {
+    local service="$1"
+    local dir="${DATA_ROOT}/docker/${service}"
+    [[ -f "${dir}/docker-compose.yml" ]] || return 0
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] docker compose up -d in %s\n' "$dir"
+    else
+        (cd "$dir" && docker compose up -d)
+    fi
+}
+
+restore_archive() {
+    local archive="$1"
+    [[ -f "${BACKUP_SOURCE}/${archive}" ]] || return 0
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] extract %s into %s\n' "${BACKUP_SOURCE}/${archive}" "$DATA_ROOT"
+    else
+        mkdir -p "$DATA_ROOT"
+        tar -xzf "${BACKUP_SOURCE}/${archive}" -C "$DATA_ROOT"
+    fi
+}
+
+wait_for_postgres() {
+    [[ "$DRY_RUN" == true ]] && return 0
+    local attempt=1
+    while [[ "$attempt" -le 30 ]]; do
+        if docker exec postgres pg_isready -U postgres >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    printf 'Postgres did not become ready after restore\n' >&2
+    return 1
+}
+
+restore_postgres() {
+    [[ -f "${BACKUP_SOURCE}/postgres.sql.gz" ]] || return 0
+    wait_for_postgres
+
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] import %s/postgres.sql.gz into postgres\n' "$BACKUP_SOURCE"
+    else
+        gunzip -c "${BACKUP_SOURCE}/postgres.sql.gz" | docker exec -i postgres psql -U postgres
+    fi
+}
+
+run_validation() {
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry-run] validate docker ps, postgres readiness, and Caddy local health\n'
+        return 0
+    fi
+
+    docker ps >/dev/null
+    docker exec postgres pg_isready -U postgres >/dev/null
+    curl -fsS http://localhost/health >/dev/null
+    printf 'Restore validation passed\n'
+}
+
+print_plan
+confirm_restore
+
+for service in immich n8n nocodb cloudflared caddy postgres; do
+    compose_down "$service"
+done
+
+restore_archive docker.tar.gz
+restore_archive data.tar.gz
+restore_archive docs.tar.gz
+
+if [[ "$RESTORE_SECRETS" == true ]]; then
+    restore_archive secrets.tar.gz
+elif [[ -f "${BACKUP_SOURCE}/secrets.tar.gz" ]]; then
+    printf 'Skipped secrets.tar.gz\n'
+fi
+
+compose_up postgres
+restore_postgres
+
+for service in caddy cloudflared nocodb n8n immich; do
+    compose_up "$service"
+done
+
+run_validation
+printf 'Restore complete: %s\n' "$BACKUP_SOURCE"

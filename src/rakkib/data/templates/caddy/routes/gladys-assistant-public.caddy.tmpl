@@ -1,0 +1,5 @@
+	# Gladys Assistant smart home dashboard and automation
+	@gladys_assistant host {{GLADYS_ASSISTANT_SUBDOMAIN}}.{{DOMAIN}}
+	handle @gladys_assistant {
+		reverse_proxy gladys-assistant:80
+	}

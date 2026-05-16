@@ -1,0 +1,29 @@
+.fss-state.yaml
+.worktrees/
+.claude/worktrees/
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+
+# Beads tracking files
+.beads/
+.beads-credential-key
+.beads/
+
+# Local env files
+.env
+docs/cloudflarePermissionFix.md
+sshviasshkey.md
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+MagicMock/
+.DS_Store
+
+# Editor swap files
+*.swp
+*.swo

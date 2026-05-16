@@ -1,0 +1,5 @@
+	# Wallos
+	@wallos host {{WALLOS_SUBDOMAIN}}.{{DOMAIN}}
+	handle @wallos {
+		reverse_proxy wallos:80
+	}

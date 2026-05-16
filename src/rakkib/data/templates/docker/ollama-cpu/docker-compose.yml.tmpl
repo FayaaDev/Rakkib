@@ -1,0 +1,17 @@
+services:
+  ollama-cpu:
+    image: ${OLLAMA_CPU_IMAGE:-ollama/ollama:latest}
+    container_name: ollama-cpu
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${OLLAMA_CPU_BIND_IP:-127.0.0.1}:${OLLAMA_CPU_HOST_PORT:-11434}:11434"
+    volumes:
+      - {{DATA_ROOT}}/data/ollama-cpu:/root/.ollama
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

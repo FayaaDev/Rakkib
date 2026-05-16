@@ -1,0 +1,5 @@
+	# Serge
+	@serge host {{SERGE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @serge {
+		reverse_proxy serge:8008
+	}

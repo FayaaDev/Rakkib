@@ -1,0 +1,5 @@
+	# Open WebUI
+	@open_webui host {{OPEN_WEBUI_SUBDOMAIN}}.{{DOMAIN}}
+	handle @open_webui {
+		reverse_proxy open-webui:8080
+	}

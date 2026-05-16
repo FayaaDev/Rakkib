@@ -1,0 +1,5 @@
+	# Grafana metrics dashboards
+	@grafana host {{GRAFANA_SUBDOMAIN}}.{{DOMAIN}}
+	handle @grafana {
+		reverse_proxy grafana:3000
+	}

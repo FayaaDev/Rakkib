@@ -1,0 +1,15 @@
+services:
+  dailytxt:
+    image: ${DAILYTXT_IMAGE:-phitux/dailytxt:2.6.1}
+    container_name: dailytxt
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/dailytxt:/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

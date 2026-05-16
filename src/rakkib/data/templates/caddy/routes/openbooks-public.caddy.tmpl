@@ -1,0 +1,5 @@
+	# OpenBooks ebook search
+	@openbooks host {{OPENBOOKS_SUBDOMAIN}}.{{DOMAIN}}
+	handle @openbooks {
+		reverse_proxy openbooks:80
+	}

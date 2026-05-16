@@ -1,0 +1,5 @@
+	# Dashy dashboard
+	@dashy host {{DASHY_SUBDOMAIN}}.{{DOMAIN}}
+	handle @dashy {
+		reverse_proxy dashy:8080
+	}

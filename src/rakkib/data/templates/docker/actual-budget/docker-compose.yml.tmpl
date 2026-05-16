@@ -1,0 +1,15 @@
+services:
+  actual-budget:
+    image: ${ACTUAL_BUDGET_IMAGE:-actualbudget/actual-server:latest}
+    container_name: actual-budget
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/actual-budget:/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

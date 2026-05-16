@@ -1,0 +1,60 @@
+#!/bin/bash
+
+METRICS_URL="http://127.0.0.1:{{CLOUDFLARED_METRICS_PORT}}/metrics"
+TIMEOUT=5
+FAIL_THRESHOLD=3
+STATE_DIR="${HOME}/.local/share/cloudflared"
+STATE_FILE="$STATE_DIR/healthcheck.state"
+LOG_FILE="$STATE_DIR/healthcheck.log"
+
+timestamp() {
+    date "+%Y-%m-%d %H:%M:%S"
+}
+
+log() {
+    echo "[$(timestamp)] $1" >> "$LOG_FILE"
+}
+
+mkdir -p "$STATE_DIR"
+
+FAILURES=0
+if [ -f "$STATE_FILE" ]; then
+    # State file only stores the current consecutive failure count.
+    read -r FAILURES < "$STATE_FILE"
+fi
+
+METRICS=$(curl -fsS --max-time "$TIMEOUT" "$METRICS_URL" 2>/dev/null)
+HA_CONNECTIONS=$(printf '%s\n' "$METRICS" | awk '/^cloudflared_tunnel_ha_connections[[:space:]]/ { print $2; exit }')
+
+if [ -n "$HA_CONNECTIONS" ] && [ "$HA_CONNECTIONS" != "0" ]; then
+    if [ "$FAILURES" -ne 0 ]; then
+        log "RECOVERED: Tunnel metrics reachable with ha_connections=$HA_CONNECTIONS"
+    fi
+    printf '0\n' > "$STATE_FILE"
+    exit 0
+fi
+
+FAILURES=$((FAILURES + 1))
+printf '%s\n' "$FAILURES" > "$STATE_FILE"
+log "ERROR: Tunnel health check failed (ha_connections=${HA_CONNECTIONS:-missing}, failure=$FAILURES/$FAIL_THRESHOLD)"
+
+if [ "$FAILURES" -lt "$FAIL_THRESHOLD" ]; then
+    exit 1
+fi
+
+log "ACTION: Restarting cloudflared container after $FAILURES consecutive failures"
+if docker restart cloudflared >/dev/null 2>&1; then
+    sleep 5
+    VERIFY_METRICS=$(curl -fsS --max-time "$TIMEOUT" "$METRICS_URL" 2>/dev/null)
+    VERIFY_HA=$(printf '%s\n' "$VERIFY_METRICS" | awk '/^cloudflared_tunnel_ha_connections[[:space:]]/ { print $2; exit }')
+    if [ -n "$VERIFY_HA" ] && [ "$VERIFY_HA" != "0" ]; then
+        log "SUCCESS: cloudflared restarted and recovered with ha_connections=$VERIFY_HA"
+        printf '0\n' > "$STATE_FILE"
+        exit 0
+    fi
+    log "WARNING: cloudflared restarted but metrics still unhealthy (ha_connections=${VERIFY_HA:-missing})"
+else
+    log "CRITICAL: Failed to restart cloudflared container"
+fi
+
+exit 1

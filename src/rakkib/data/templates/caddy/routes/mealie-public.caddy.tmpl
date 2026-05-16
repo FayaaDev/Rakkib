@@ -1,0 +1,5 @@
+	# Mealie recipe manager
+	@mealie host {{MEALIE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @mealie {
+		reverse_proxy mealie:9000
+	}

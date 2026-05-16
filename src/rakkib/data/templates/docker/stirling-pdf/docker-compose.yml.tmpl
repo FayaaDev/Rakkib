@@ -1,0 +1,19 @@
+services:
+  stirling-pdf:
+    image: ${STIRLING_PDF_IMAGE}
+    container_name: stirling-pdf
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/stirling-pdf/tessdata:/usr/share/tessdata:rw
+      - {{DATA_ROOT}}/data/stirling-pdf/config:/configs:rw
+      - {{DATA_ROOT}}/data/stirling-pdf/logs:/logs:rw
+    environment:
+      SECURITY_ENABLELOGIN: ${SECURITY_ENABLELOGIN}
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

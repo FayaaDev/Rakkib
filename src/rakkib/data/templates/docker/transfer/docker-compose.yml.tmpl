@@ -1,0 +1,32 @@
+services:
+  transfer:
+    image: dutchcoders/transfer.sh:latest-noroot
+    container_name: transfer
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - --provider
+      - local
+      - --basedir
+      - /data
+      - --listener
+      - ":8080"
+      - --email-contact
+      - "${EMAIL_CONTACT}"
+      - --purge-days
+      - "${TRANSFER_PURGE_DAYS:-14}"
+      - --purge-interval
+      - "${TRANSFER_PURGE_INTERVAL:-1}"
+      - --max-upload-size
+      - "${TRANSFER_MAX_UPLOAD_SIZE_KB:-1048576}"
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - {{DATA_ROOT}}/data/transfer:/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

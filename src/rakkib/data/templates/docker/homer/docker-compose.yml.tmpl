@@ -1,0 +1,18 @@
+services:
+  homer:
+    image: b4bz/homer:latest
+    container_name: homer
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - INIT_ASSETS=1
+      - UID=1000
+      - GID=1000
+    volumes:
+      - {{DATA_ROOT}}/data/homer/assets:/www/assets
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

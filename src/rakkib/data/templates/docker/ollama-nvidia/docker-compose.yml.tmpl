@@ -1,0 +1,24 @@
+services:
+  ollama-nvidia:
+    image: ${OLLAMA_NVIDIA_IMAGE:-ollama/ollama:latest}
+    container_name: ollama-nvidia
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${OLLAMA_NVIDIA_BIND_IP:-127.0.0.1}:${OLLAMA_NVIDIA_HOST_PORT:-11434}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - {{DATA_ROOT}}/data/ollama-nvidia:/root/.ollama
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

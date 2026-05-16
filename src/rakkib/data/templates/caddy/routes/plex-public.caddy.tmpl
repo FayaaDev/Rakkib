@@ -1,0 +1,5 @@
+	# Plex media server
+	@plex host {{PLEX_SUBDOMAIN}}.{{DOMAIN}}
+	handle @plex {
+		reverse_proxy plex:32400
+	}

@@ -1,0 +1,15 @@
+services:
+  privatebin:
+    image: ${PRIVATEBIN_IMAGE:-privatebin/nginx-fpm-alpine:stable}
+    container_name: privatebin
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - {{DATA_ROOT}}/data/privatebin:/srv/data
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

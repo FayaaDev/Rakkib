@@ -1,0 +1,5 @@
+	# PairDrop file sharing
+	@pairdrop host {{PAIRDROP_SUBDOMAIN}}.{{DOMAIN}}
+	handle @pairdrop {
+		reverse_proxy pairdrop:3000
+	}

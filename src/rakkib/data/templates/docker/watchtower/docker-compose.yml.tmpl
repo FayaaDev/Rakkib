@@ -1,0 +1,16 @@
+services:
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: watchtower
+    restart: unless-stopped
+    env_file: .env
+    network_mode: "none"
+    healthcheck:
+      test: ["CMD", "/watchtower", "--help"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 1s
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro

@@ -1,0 +1,5 @@
+	# Lobe Chat
+	@lobe_chat host {{LOBE_CHAT_SUBDOMAIN}}.{{DOMAIN}}
+	handle @lobe_chat {
+		reverse_proxy lobe-chat:3210
+	}

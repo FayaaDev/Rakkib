@@ -1,0 +1,5 @@
+	# Homer static dashboard
+	@homer host {{HOMER_SUBDOMAIN}}.{{DOMAIN}}
+	handle @homer {
+		reverse_proxy homer:8080
+	}

@@ -1,0 +1,5 @@
+	# Chatpad AI
+	@chatpad host {{CHATPAD_SUBDOMAIN}}.{{DOMAIN}}
+	handle @chatpad {
+		reverse_proxy chatpad:80
+	}

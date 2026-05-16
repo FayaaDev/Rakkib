@@ -1,0 +1,17 @@
+services:
+  esphome:
+    image: ${ESPHOME_IMAGE:-ghcr.io/esphome/esphome:stable}
+    container_name: esphome
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - {{DATA_ROOT}}/data/esphome/config:/config
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

@@ -1,0 +1,5 @@
+	# Memos note-taking app
+	@memos host {{MEMOS_SUBDOMAIN}}.{{DOMAIN}}
+	handle @memos {
+		reverse_proxy memos:5230
+	}

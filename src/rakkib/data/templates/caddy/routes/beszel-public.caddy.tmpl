@@ -1,0 +1,9 @@
+	# Beszel monitoring dashboard
+	@beszel host {{BESZEL_SUBDOMAIN}}.{{DOMAIN}}
+	handle @beszel {
+		reverse_proxy beszel:8090 {
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+			header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+	}

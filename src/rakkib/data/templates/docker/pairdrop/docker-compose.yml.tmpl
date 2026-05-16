@@ -1,0 +1,17 @@
+services:
+  pairdrop:
+    image: ${PAIRDROP_IMAGE:-lscr.io/linuxserver/pairdrop:latest}
+    container_name: pairdrop
+    restart: unless-stopped
+    environment:
+      - PUID=${ADMIN_UID}
+      - PGID=${ADMIN_GID}
+      - TZ=${TZ}
+    volumes:
+      - {{DATA_ROOT}}/data/pairdrop/config:/config
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

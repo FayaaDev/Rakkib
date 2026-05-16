@@ -1,0 +1,5 @@
+	# IT-Tools developer utilities
+	@it_tools host {{IT_TOOLS_SUBDOMAIN}}.{{DOMAIN}}
+	handle @it_tools {
+		reverse_proxy it-tools:80
+	}

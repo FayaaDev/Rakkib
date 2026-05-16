@@ -1,0 +1,19 @@
+services:
+  webdav:
+    image: ${WEBDAV_IMAGE:-bytemark/webdav:latest}
+    container_name: webdav
+    restart: unless-stopped
+    environment:
+      - AUTH_TYPE=${WEBDAV_AUTH_TYPE}
+      - USERNAME=${WEBDAV_USERNAME}
+      - PASSWORD=${WEBDAV_PASSWORD}
+      - LOCATION=${WEBDAV_LOCATION}
+      - ANONYMOUS_METHODS=${WEBDAV_ANONYMOUS_METHODS}
+    volumes:
+      - {{DATA_ROOT}}/data/webdav/dav:/var/lib/dav
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true
