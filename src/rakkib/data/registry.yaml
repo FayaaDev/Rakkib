@@ -2464,6 +2464,68 @@ services:
       remove:
         - cloudflare_dns_delete
 
+  - id: onlyoffice
+    state_bucket: selected_services
+    required: false
+    optional: true
+    image: onlyoffice/documentserver:9.3.1
+    default_port: 80
+    health_timeout: 480
+    default_subdomain: office
+    subdomain_key: onlyoffice
+    subdomain_placeholder: ONLYOFFICE_SUBDOMAIN
+    env_keys:
+      - ONLYOFFICE_JWT_SECRET
+    env_preserve_keys:
+      - ONLYOFFICE_JWT_SECRET
+    depends_on: []
+    host_service: false
+    host_port: false
+    internal_access:
+      enabled: true
+      host_port: 13053
+      container_port: 80
+    caddy:
+      template: onlyoffice-public.caddy.tmpl
+    data_dirs:
+      - data/onlyoffice/logs
+      - data/onlyoffice/data
+      - data/onlyoffice/lib
+      - data/onlyoffice/rabbitmq
+      - data/onlyoffice/redis
+      - data/onlyoffice/db
+    secrets:
+      ONLYOFFICE_JWT_SECRET:
+        factory: password
+        length: 48
+    homepage:
+      category: Documents
+      name: OnlyOffice
+      description: Collaborative document server
+      icon: onlyoffice.png
+    resource_requirements:
+      min_ram_mb: 4096
+      recommended_ram_mb: 4096
+      min_disk_gb: 2
+      recommended_disk_gb: 8
+      install_warning: "ONLYOFFICE Document Server is a large image and upstream recommends 4 GB RAM, 2 CPU cores, and 2 GB swap."
+    monitoring:
+      enabled: true
+      type: http
+      target: public_url
+      path: /healthcheck
+      interval: 60
+      timeout: 10
+      retries: 3
+    smoke:
+      path: /healthcheck
+      expected_text: "true"
+      timeout: 300
+    notes: "ONLYOFFICE Docs Community Document Server. Optional. Uses JWT protection for integrations; keep ONLYOFFICE_JWT_SECRET aligned with connected apps. Stores logs, cache, embedded database, RabbitMQ, and Redis state under data/onlyoffice."
+    hooks:
+      remove:
+        - cloudflare_dns_delete
+
   - id: gitea
     state_bucket: selected_services
     required: false

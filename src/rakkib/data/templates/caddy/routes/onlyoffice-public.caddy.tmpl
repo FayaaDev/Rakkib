@@ -1,0 +1,5 @@
+	# OnlyOffice Document Server
+	@onlyoffice host {{ONLYOFFICE_SUBDOMAIN}}.{{DOMAIN}}
+	handle @onlyoffice {
+		reverse_proxy onlyoffice:80
+	}

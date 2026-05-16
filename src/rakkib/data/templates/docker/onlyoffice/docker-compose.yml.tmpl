@@ -1,0 +1,32 @@
+services:
+  onlyoffice:
+    image: ${ONLYOFFICE_IMAGE:-onlyoffice/documentserver:9.3.1}
+    container_name: onlyoffice
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      JWT_ENABLED: ${JWT_ENABLED:-true}
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: ${JWT_HEADER:-Authorization}
+      JWT_IN_BODY: ${JWT_IN_BODY:-false}
+    volumes:
+      - {{DATA_ROOT}}/data/onlyoffice/logs:/var/log/onlyoffice:rw
+      - {{DATA_ROOT}}/data/onlyoffice/data:/var/www/onlyoffice/Data:rw
+      - {{DATA_ROOT}}/data/onlyoffice/lib:/var/lib/onlyoffice:rw
+      - {{DATA_ROOT}}/data/onlyoffice/rabbitmq:/var/lib/rabbitmq:rw
+      - {{DATA_ROOT}}/data/onlyoffice/redis:/var/lib/redis:rw
+      - {{DATA_ROOT}}/data/onlyoffice/db:/var/lib/postgresql:rw
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    stop_grace_period: 5m
+    networks:
+      - {{DOCKER_NET}}
+
+networks:
+  {{DOCKER_NET}}:
+    external: true

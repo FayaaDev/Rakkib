@@ -247,6 +247,11 @@ service_catalog:
       numeric_alias: 67
       subdomain_key: memos
       default_subdomain: memos
+    - slug: onlyoffice
+      label: OnlyOffice
+      numeric_alias: 68
+      subdomain_key: onlyoffice
+      default_subdomain: office
     - slug: gitea
       label: Gitea
       numeric_alias: 31
@@ -348,7 +353,7 @@ fields:
     type: multi_select
     selection_mode: add_to_empty
     prompt: "Service categories: type service slugs to add (e.g. `n8n immich filebrowser`); numeric aliases like `6 8 12` are also accepted, or press Enter to skip all:"
-    canonical_values: [n8n, immich, transfer, jellyfin, plex, openclaw, hermes-agent, claude, codex, anse, filebrowser, webdav, pingvin-share, it-tools, cyberchef, drawio, excalidraw, homer, dozzle, grafana, homarr, glance, dashy, beszel, glances, freshrss, openbooks, actual-budget, wallos, rsshub, vaultwarden, adguard, gladys-assistant, whoogle, forgejo, privatebin, stirling-pdf, mealie, dailytxt, notemark, memos, esphome, gitea, whoami, pairdrop, moodist, cheshire-cat-ai, flowise, serge, chatpad, lobe-chat, open-webui, ollama-cpu, ollama-amd, ollama-nvidia, autoheal, watchtower, matter-server]
+    canonical_values: [n8n, immich, transfer, jellyfin, plex, openclaw, hermes-agent, claude, codex, anse, filebrowser, webdav, pingvin-share, it-tools, cyberchef, drawio, excalidraw, homer, dozzle, grafana, homarr, glance, dashy, beszel, glances, freshrss, openbooks, actual-budget, wallos, rsshub, vaultwarden, adguard, gladys-assistant, whoogle, forgejo, privatebin, stirling-pdf, mealie, dailytxt, notemark, memos, onlyoffice, esphome, gitea, whoami, pairdrop, moodist, cheshire-cat-ai, flowise, serge, chatpad, lobe-chat, open-webui, ollama-cpu, ollama-amd, ollama-nvidia, autoheal, watchtower, matter-server]
     numeric_aliases:
       "6": n8n
       "7": immich
@@ -390,6 +395,7 @@ fields:
       "55": dailytxt
       "59": notemark
       "67": memos
+      "68": onlyoffice
       "62": esphome
       "31": gitea
       "32": whoami
@@ -541,6 +547,7 @@ Lifestyle:
 Documents:
   [ ] 59 Note Mark     — Markdown notes app     →  notemark.<domain>
   [ ] 67 Memos         — note-taking app        →  memos.<domain>
+  [ ] 68 OnlyOffice    — document server        →  office.<domain>
 
 Host Addons:
   [ ] 11 VErgo Terminal — zsh, prompt, completions, CLI UX
@@ -649,6 +656,7 @@ subdomains:
   dailytxt: dailytxt
   notemark: notemark
   memos: memos
+  onlyoffice: office
   esphome: esphome
 ```
 
@@ -706,4 +714,5 @@ During rendering, flatten these values into service placeholders:
 - `subdomains.dailytxt` -> `{{DAILYTXT_SUBDOMAIN}}`
 - `subdomains.notemark` -> `{{NOTEMARK_SUBDOMAIN}}`
 - `subdomains.memos` -> `{{MEMOS_SUBDOMAIN}}`
+- `subdomains.onlyoffice` -> `{{ONLYOFFICE_SUBDOMAIN}}`
 - `subdomains.esphome` -> `{{ESPHOME_SUBDOMAIN}}`
