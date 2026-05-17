@@ -41,6 +41,7 @@ from rakkib.services_cli import (
     apply_planned_subdomains as _apply_planned_subdomains,
     apply_service_selection as _apply_service_selection,
     build_add_choices as _build_add_choices,
+    build_remove_choices as _build_remove_choices,
     build_restart_choices as _build_restart_choices,
     deployed_service_lists as _deployed_service_lists,
     installed_service_ids as _installed_service_ids,
@@ -1018,49 +1019,93 @@ def smoke(ctx: click.Context, service: str) -> None:
 
 
 @cli.command()
-@click.argument("service")
+@click.argument("service", required=False)
 @click.option("--yes", is_flag=True, help="Skip confirmation")
 @click.pass_context
-def remove(ctx: click.Context, service: str, yes: bool) -> None:
-    """Remove a single service (containers, rendered files, data dirs).
+def remove(ctx: click.Context, service: str | None, yes: bool) -> None:
+    """Remove services (containers, rendered files, data dirs).
 
-    This is a non-interactive alternative to deselecting a service via `rakkib add`.
+    Without a service argument, installed services are shown checked; uncheck services
+    to purge them.
     """
     repo_dir = ctx.obj["repo_dir"]
     state_path = default_state_path(repo_dir)
     state = State.load(state_path)
 
     registry = load_service_registry()
+    selected_list = list(state.get("selected_services", []) or [])
+    foundation_list = list(state.get("foundation_services", []) or [])
+    selected = set(selected_list)
+    foundation = set(foundation_list)
+    old_selected = foundation | selected
+
     by_id = {svc["id"]: svc for svc in registry["services"]}
-    if service not in by_id:
-        console.print(f"[bold red]Error:[/bold red] Unknown service '{service}'.")
-        ctx.exit(1)
-    if by_id[service].get("state_bucket") == "always":
-        console.print(
-            f"[bold red]Error:[/bold red] '{service}' is an always-installed service and cannot be removed."
+    if service:
+        if service not in by_id:
+            console.print(f"[bold red]Error:[/bold red] Unknown service '{service}'.")
+            ctx.exit(1)
+        if by_id[service].get("state_bucket") == "always":
+            console.print(
+                f"[bold red]Error:[/bold red] '{service}' is an always-installed service and cannot be removed."
+            )
+            ctx.exit(1)
+        remove_ids = {service}
+        if service not in old_selected:
+            console.print(f"[yellow]{service} is not selected; attempting cleanup anyway.[/yellow]")
+        keep_ids = old_selected - remove_ids
+    else:
+        if not old_selected:
+            console.print("[yellow]No removable installed services found.[/yellow]")
+            return
+        keep = prompt_checkbox(
+            "Select services to keep installed (uncheck to purge):",
+            choices=_build_remove_choices(state, registry),
         )
-        ctx.exit(1)
+        keep_ids = set(keep)
+        remove_ids = old_selected - keep_ids
+        if not remove_ids:
+            console.print("[yellow]No services selected for removal.[/yellow]")
+            return
 
-    selected = set(state.get("selected_services", []) or [])
-    foundation = set(state.get("foundation_services", []) or [])
-    if service not in selected and service not in foundation:
-        console.print(f"[yellow]{service} is not selected; attempting cleanup anyway.[/yellow]")
+        dependency_errors = _validate_service_dependencies(keep_ids, registry)
+        if dependency_errors:
+            console.print("[bold red]Error:[/bold red] Invalid remaining service selection:")
+            for error in dependency_errors:
+                console.print(f"  - {error}")
+            ctx.exit(1)
 
-    if not yes and not prompt_confirm(f"Remove '{service}' and delete its data?", default=False):
+    remove_list = sorted(remove_ids)
+    if len(remove_list) > 1:
+        _summarize_service_diff([], remove_list)
+
+    confirm_message = (
+        f"Remove '{remove_list[0]}' and delete its data?"
+        if len(remove_list) == 1
+        else "Remove selected services and delete their data?"
+    )
+    if not yes and not prompt_confirm(confirm_message, default=False):
         console.print("[yellow]Aborted.[/yellow]")
         return
     if yes:
         console.print("[dim]Confirmation skipped because --yes was provided.[/dim]")
 
-    services_step.remove_single_service(state, service)
+    previous_state = State({
+        "foundation_services": foundation_list,
+        "selected_services": selected_list,
+    })
+    removal_order = [
+        svc["id"]
+        for svc in reversed(selected_service_defs(previous_state, registry))
+        if svc["id"] in remove_ids
+    ]
+    if service and service not in removal_order:
+        removal_order.append(service)
+    for svc_id in removal_order:
+        services_step.remove_single_service(state, svc_id)
 
     # Update state selection so a later `rakkib pull` won't re-add it.
-    if service in selected:
-        selected.remove(service)
-        state.set("selected_services", sorted(selected))
-    if service in foundation:
-        foundation.remove(service)
-        state.set("foundation_services", sorted(foundation))
+    state.set("selected_services", sorted(selected - remove_ids))
+    state.set("foundation_services", sorted(foundation - remove_ids))
     _persist_deployed_selection(state)
     state.save(state_path)
 
@@ -1069,7 +1114,7 @@ def remove(ctx: click.Context, service: str, yes: bool) -> None:
         services_step._reload_caddy(data_root)
     services_step.sync_shared_artifacts(state, services_step._repo_dir(), data_root, registry)
 
-    console.print(f"[bold green]Removed {service}.[/bold green]")
+    console.print(f"[bold green]Removed {', '.join(remove_list)}.[/bold green]")
 
 
 @cli.command()

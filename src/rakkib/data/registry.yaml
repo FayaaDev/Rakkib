@@ -1770,6 +1770,11 @@ services:
       template: beszel-public.caddy.tmpl
     data_dirs:
       - data/beszel/beszel_data
+    homepage:
+      category: Monitoring
+      name: Beszel
+      description: Lightweight server monitoring hub
+      icon: grafana.png
     monitoring:
       enabled: true
       type: http
@@ -1977,6 +1982,11 @@ services:
       template: actual-budget-public.caddy.tmpl
     data_dirs:
       - data/actual-budget
+    homepage:
+      category: Finance
+      name: Actual Budget
+      description: Personal finance sync server
+      icon: actual-budget.png
     monitoring:
       enabled: true
       type: http
@@ -2058,6 +2068,11 @@ services:
       template: rsshub-public.caddy.tmpl
     data_dirs:
       - data/rsshub/redis
+    homepage:
+      category: News
+      name: RSSHub
+      description: RSS feed generator
+      icon: rsshub.png
     monitoring:
       enabled: true
       type: http
@@ -2098,6 +2113,11 @@ services:
     secrets:
       VAULTWARDEN_ADMIN_TOKEN:
         factory: password
+    homepage:
+      category: Personal
+      name: Vaultwarden
+      description: Bitwarden-compatible password manager
+      icon: vaultwarden.png
     monitoring:
       enabled: true
       type: http
@@ -2136,6 +2156,11 @@ services:
     data_dirs:
       - data/adguard/work
       - data/adguard/conf
+    homepage:
+      category: Infrastructure
+      name: AdGuard Home
+      description: Network-wide ad blocker
+      icon: adguard.png
     monitoring:
       enabled: true
       type: http
@@ -2220,6 +2245,11 @@ services:
     chown:
       uid: 927
       gid: 927
+    homepage:
+      category: Utility
+      name: Whoogle
+      description: Privacy-respecting metasearch engine
+      icon: it-tools.png
     monitoring:
       enabled: true
       type: http
@@ -2559,6 +2589,11 @@ services:
       db: gitea_db
       password_key: GITEA_DB_PASS
       display_name: Gitea
+    homepage:
+      category: Developer Tools
+      name: Gitea
+      description: Self-hosted Git service
+      icon: gitea.png
     monitoring:
       enabled: true
       type: http
@@ -2602,6 +2637,11 @@ services:
     chown:
       uid: 65534
       gid: 82
+    homepage:
+      category: File Sharing
+      name: PrivateBin
+      description: Encrypted pastebin
+      icon: privatebin.png
     monitoring:
       enabled: true
       type: http
@@ -2706,6 +2746,11 @@ services:
       container_port: 11434
     data_dirs:
       - data/ollama-cpu
+    homepage:
+      category: AI
+      name: Ollama CPU
+      description: Local LLM runtime for CPU hosts
+      icon: ollama-cpu.png
     notes: "Ollama LLM runtime (CPU). Optional. Binds API port 11434 to 127.0.0.1 only (not exposed via Caddy). Use this service if you do not have a supported GPU runtime."
 
   - id: ollama-amd
@@ -2727,6 +2772,11 @@ services:
       container_port: 11434
     data_dirs:
       - data/ollama-amd
+    homepage:
+      category: AI
+      name: Ollama AMD
+      description: Local LLM runtime for AMD GPU hosts
+      icon: ollama-amd.png
     notes: "Ollama LLM runtime (AMD ROCm). Optional. Requires ROCm-capable host drivers and maps /dev/kfd + /dev/dri into the container. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy)."
 
   - id: ollama-nvidia
@@ -2748,4 +2798,9 @@ services:
       container_port: 11434
     data_dirs:
       - data/ollama-nvidia
+    homepage:
+      category: AI
+      name: Ollama NVIDIA
+      description: Local LLM runtime for NVIDIA GPU hosts
+      icon: ollama-nvidia.png
     notes: "Ollama LLM runtime (NVIDIA GPU). Optional. Requires NVIDIA Container Toolkit on the host; compose requests an NVIDIA GPU device reservation. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy)."

@@ -184,6 +184,14 @@ def build_add_choices(state: State, registry: dict[str, Any]) -> list[Choice]:
     return build_service_choices(state, registry, PickerOptions(active_ids=installed_service_ids(state)))
 
 
+def build_remove_choices(state: State, registry: dict[str, Any]) -> list[Choice]:
+    return build_service_choices(
+        state,
+        registry,
+        PickerOptions(active_ids=installed_service_ids(state), include_only_active=True),
+    )
+
+
 def build_restart_choices(state: State, registry: dict[str, Any]) -> list[Choice]:
     if not state.get("deployed.exists", False):
         return []

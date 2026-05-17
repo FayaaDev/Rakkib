@@ -92,6 +92,45 @@
       "icon": "lobe-chat.png"
     },
     {
+      "id": "ollama-amd",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 11434,
+      "category": "AI",
+      "name": "Ollama AMD",
+      "description": "Local LLM runtime for AMD GPU hosts",
+      "icon": "ollama-amd.png"
+    },
+    {
+      "id": "ollama-cpu",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 11434,
+      "category": "AI",
+      "name": "Ollama CPU",
+      "description": "Local LLM runtime for CPU hosts",
+      "icon": "ollama-cpu.png"
+    },
+    {
+      "id": "ollama-nvidia",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 11434,
+      "category": "AI",
+      "name": "Ollama NVIDIA",
+      "description": "Local LLM runtime for NVIDIA GPU hosts",
+      "icon": "ollama-nvidia.png"
+    },
+    {
       "id": "open-webui",
       "required": false,
       "optional": true,
@@ -144,6 +183,136 @@
       "icon": "serge.png"
     },
     {
+      "id": "adguard",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "adguard",
+      "default_port": 3000,
+      "category": "Infrastructure",
+      "name": "AdGuard Home",
+      "description": "Network-wide ad blocker",
+      "icon": "adguard.png"
+    },
+    {
+      "id": "autoheal",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": null,
+      "category": "Infrastructure",
+      "name": "Autoheal",
+      "description": "Restart unhealthy containers",
+      "icon": "docker.png"
+    },
+    {
+      "id": "caddy",
+      "required": true,
+      "optional": false,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 80,
+      "category": "Infrastructure",
+      "name": "caddy",
+      "description": "Reverse proxy. Installed only for Cloudflare exposure.",
+      "icon": null
+    },
+    {
+      "id": "cloudflared",
+      "required": true,
+      "optional": false,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": null,
+      "category": "Infrastructure",
+      "name": "cloudflared",
+      "description": "Cloudflare tunnel. Installed only for Cloudflare exposure. Step 3 may pause for guided Cloudflare login approval.",
+      "icon": null
+    },
+    {
+      "id": "dockge",
+      "required": false,
+      "optional": true,
+      "foundation": true,
+      "host_service": false,
+      "default_subdomain": "dockge",
+      "default_port": 5001,
+      "category": "Infrastructure",
+      "name": "Dockge",
+      "description": "Compose manager",
+      "icon": "docker.png"
+    },
+    {
+      "id": "homepage",
+      "required": false,
+      "optional": true,
+      "foundation": true,
+      "host_service": false,
+      "default_subdomain": "home",
+      "default_port": 3000,
+      "category": "Infrastructure",
+      "name": "homepage",
+      "description": "Service dashboard. Foundation bundle service. services.yaml generated from selected service list.",
+      "icon": null
+    },
+    {
+      "id": "nocodb",
+      "required": false,
+      "optional": true,
+      "foundation": true,
+      "host_service": false,
+      "default_subdomain": "nocodb",
+      "default_port": 8080,
+      "category": "Infrastructure",
+      "name": "NocoDB",
+      "description": "No-code database UI",
+      "icon": "nocodb.png"
+    },
+    {
+      "id": "postgres",
+      "required": true,
+      "optional": false,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": 5432,
+      "category": "Infrastructure",
+      "name": "postgres",
+      "description": "Single postgres instance serves all services. Port bound to 127.0.0.1 only.",
+      "icon": null
+    },
+    {
+      "id": "uptime-kuma",
+      "required": false,
+      "optional": true,
+      "foundation": true,
+      "host_service": false,
+      "default_subdomain": "status",
+      "default_port": 3001,
+      "category": "Infrastructure",
+      "name": "Uptime Kuma",
+      "description": "Uptime monitoring",
+      "icon": "uptime-kuma.png"
+    },
+    {
+      "id": "watchtower",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": null,
+      "default_port": null,
+      "category": "Infrastructure",
+      "name": "Watchtower",
+      "description": "Auto-update containers",
+      "icon": "docker.png"
+    },
+    {
       "id": "n8n",
       "required": false,
       "optional": true,
@@ -168,45 +337,6 @@
       "name": "OpenBooks",
       "description": "Search and download ebooks",
       "icon": "books.png"
-    },
-    {
-      "id": "caddy",
-      "required": true,
-      "optional": false,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": 80,
-      "category": "Core",
-      "name": "caddy",
-      "description": "Reverse proxy. Installed only for Cloudflare exposure.",
-      "icon": null
-    },
-    {
-      "id": "cloudflared",
-      "required": true,
-      "optional": false,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": null,
-      "category": "Core",
-      "name": "cloudflared",
-      "description": "Cloudflare tunnel. Installed only for Cloudflare exposure. Step 3 may pause for guided Cloudflare login approval.",
-      "icon": null
-    },
-    {
-      "id": "postgres",
-      "required": true,
-      "optional": false,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": 5432,
-      "category": "Core",
-      "name": "postgres",
-      "description": "Single postgres instance serves all services. Port bound to 127.0.0.1 only.",
-      "icon": null
     },
     {
       "id": "dashy",
@@ -287,6 +417,19 @@
       "icon": "forgejo.png"
     },
     {
+      "id": "gitea",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "gitea",
+      "default_port": 3000,
+      "category": "Developer Tools",
+      "name": "Gitea",
+      "description": "Self-hosted Git service",
+      "icon": "gitea.png"
+    },
+    {
       "id": "it-tools",
       "required": false,
       "optional": true,
@@ -352,6 +495,19 @@
       "icon": "markdown.png"
     },
     {
+      "id": "onlyoffice",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "office",
+      "default_port": 80,
+      "category": "Documents",
+      "name": "OnlyOffice",
+      "description": "Collaborative document server",
+      "icon": "onlyoffice.png"
+    },
+    {
       "id": "stirling-pdf",
       "required": false,
       "optional": true,
@@ -404,6 +560,19 @@
       "icon": "pingvin-share.png"
     },
     {
+      "id": "privatebin",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "privatebin",
+      "default_port": 8080,
+      "category": "File Sharing",
+      "name": "PrivateBin",
+      "description": "Encrypted pastebin",
+      "icon": "privatebin.png"
+    },
+    {
       "id": "transfer",
       "required": false,
       "optional": true,
@@ -430,6 +599,19 @@
       "icon": "folder.png"
     },
     {
+      "id": "actual-budget",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "actual",
+      "default_port": 5006,
+      "category": "Finance",
+      "name": "Actual Budget",
+      "description": "Personal finance sync server",
+      "icon": "actual-budget.png"
+    },
+    {
       "id": "wallos",
       "required": false,
       "optional": true,
@@ -441,19 +623,6 @@
       "name": "Wallos",
       "description": "Subscription and expense tracker",
       "icon": "wallos.png"
-    },
-    {
-      "id": "homepage",
-      "required": false,
-      "optional": true,
-      "foundation": true,
-      "host_service": false,
-      "default_subdomain": "home",
-      "default_port": 3000,
-      "category": "Foundation",
-      "name": "homepage",
-      "description": "Service dashboard. Foundation bundle service. services.yaml generated from selected service list.",
-      "icon": null
     },
     {
       "id": "esphome",
@@ -493,71 +662,6 @@
       "name": "Matter Server",
       "description": "Matter controller WebSocket server",
       "icon": "home-assistant.png"
-    },
-    {
-      "id": "autoheal",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": null,
-      "category": "Infrastructure",
-      "name": "Autoheal",
-      "description": "Restart unhealthy containers",
-      "icon": "docker.png"
-    },
-    {
-      "id": "dockge",
-      "required": false,
-      "optional": true,
-      "foundation": true,
-      "host_service": false,
-      "default_subdomain": "dockge",
-      "default_port": 5001,
-      "category": "Infrastructure",
-      "name": "Dockge",
-      "description": "Compose manager",
-      "icon": "docker.png"
-    },
-    {
-      "id": "nocodb",
-      "required": false,
-      "optional": true,
-      "foundation": true,
-      "host_service": false,
-      "default_subdomain": "nocodb",
-      "default_port": 8080,
-      "category": "Infrastructure",
-      "name": "NocoDB",
-      "description": "No-code database UI",
-      "icon": "nocodb.png"
-    },
-    {
-      "id": "uptime-kuma",
-      "required": false,
-      "optional": true,
-      "foundation": true,
-      "host_service": false,
-      "default_subdomain": "status",
-      "default_port": 3001,
-      "category": "Infrastructure",
-      "name": "Uptime Kuma",
-      "description": "Uptime monitoring",
-      "icon": "uptime-kuma.png"
-    },
-    {
-      "id": "watchtower",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": null,
-      "category": "Infrastructure",
-      "name": "Watchtower",
-      "description": "Auto-update containers",
-      "icon": "docker.png"
     },
     {
       "id": "dailytxt",
@@ -625,6 +729,19 @@
       "icon": "plex.png"
     },
     {
+      "id": "beszel",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "beszel",
+      "default_port": 8090,
+      "category": "Monitoring",
+      "name": "Beszel",
+      "description": "Lightweight server monitoring hub",
+      "icon": "grafana.png"
+    },
+    {
       "id": "dozzle",
       "required": false,
       "optional": true,
@@ -677,110 +794,6 @@
       "icon": "freshrss.png"
     },
     {
-      "id": "actual-budget",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "actual",
-      "default_port": 5006,
-      "category": "Other",
-      "name": "actual-budget",
-      "description": "Self-hosted Actual Budget sync server. Optional. Data stored under /data inside the container.",
-      "icon": null
-    },
-    {
-      "id": "adguard",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "adguard",
-      "default_port": 3000,
-      "category": "Other",
-      "name": "adguard",
-      "description": "Network-wide ad blocker (AdGuard Home). Optional. Web UI is reverse proxied via Caddy. DNS ports are not bound by default to avoid conflicts with the host resolver; bind 53/tcp+udp manually if you want LAN clients to use AdGuard for DNS.",
-      "icon": null
-    },
-    {
-      "id": "beszel",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "beszel",
-      "default_port": 8090,
-      "category": "Other",
-      "name": "beszel",
-      "description": "Lightweight server monitoring hub. Optional. Agents connect separately; hub listens on 8090.",
-      "icon": null
-    },
-    {
-      "id": "gitea",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "gitea",
-      "default_port": 3000,
-      "category": "Other",
-      "name": "gitea",
-      "description": "Self-hosted Git service (Gitea). Optional. HTTP(S) only by default (no SSH port exposed); clone/push over HTTPS or extend compose if SSH is required.",
-      "icon": null
-    },
-    {
-      "id": "ollama-amd",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": 11434,
-      "category": "Other",
-      "name": "ollama-amd",
-      "description": "Ollama LLM runtime (AMD ROCm). Optional. Requires ROCm-capable host drivers and maps /dev/kfd + /dev/dri into the container. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy).",
-      "icon": null
-    },
-    {
-      "id": "ollama-cpu",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": 11434,
-      "category": "Other",
-      "name": "ollama-cpu",
-      "description": "Ollama LLM runtime (CPU). Optional. Binds API port 11434 to 127.0.0.1 only (not exposed via Caddy). Use this service if you do not have a supported GPU runtime.",
-      "icon": null
-    },
-    {
-      "id": "ollama-nvidia",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": null,
-      "default_port": 11434,
-      "category": "Other",
-      "name": "ollama-nvidia",
-      "description": "Ollama LLM runtime (NVIDIA GPU). Optional. Requires NVIDIA Container Toolkit on the host; compose requests an NVIDIA GPU device reservation. API port 11434 is bound to 127.0.0.1 only (not exposed via Caddy).",
-      "icon": null
-    },
-    {
-      "id": "privatebin",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "privatebin",
-      "default_port": 8080,
-      "category": "Other",
-      "name": "privatebin",
-      "description": "Encrypted pastebin (PrivateBin). Optional. Uses privatebin/nginx-fpm-alpine with filesystem storage persisted under /srv/data.",
-      "icon": null
-    },
-    {
       "id": "rsshub",
       "required": false,
       "optional": true,
@@ -788,36 +801,10 @@
       "host_service": false,
       "default_subdomain": "rsshub",
       "default_port": 1200,
-      "category": "Other",
-      "name": "rsshub",
-      "description": "RSS generator (RSSHub). Optional. Deployed with Redis cache + browserless/chrome for broader route support.",
-      "icon": null
-    },
-    {
-      "id": "vaultwarden",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "vault",
-      "default_port": 80,
-      "category": "Other",
-      "name": "vaultwarden",
-      "description": "Bitwarden-compatible password manager (Vaultwarden). Optional. DOMAIN should match the public https URL when behind a reverse proxy.",
-      "icon": null
-    },
-    {
-      "id": "whoogle",
-      "required": false,
-      "optional": true,
-      "foundation": false,
-      "host_service": false,
-      "default_subdomain": "whoogle",
-      "default_port": 5000,
-      "category": "Other",
-      "name": "whoogle",
-      "description": "Privacy-respecting metasearch engine. Optional. Stores container /config under the Rakkib data root.",
-      "icon": null
+      "category": "News",
+      "name": "RSSHub",
+      "description": "RSS feed generator",
+      "icon": "rsshub.png"
     },
     {
       "id": "moodist",
@@ -833,6 +820,19 @@
       "icon": "moodist.png"
     },
     {
+      "id": "vaultwarden",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "vault",
+      "default_port": 80,
+      "category": "Personal",
+      "name": "Vaultwarden",
+      "description": "Bitwarden-compatible password manager",
+      "icon": "vaultwarden.png"
+    },
+    {
       "id": "whoami",
       "required": false,
       "optional": true,
@@ -844,6 +844,19 @@
       "name": "Whoami",
       "description": "Minimal request debug page",
       "icon": "traefik.png"
+    },
+    {
+      "id": "whoogle",
+      "required": false,
+      "optional": true,
+      "foundation": false,
+      "host_service": false,
+      "default_subdomain": "whoogle",
+      "default_port": 5000,
+      "category": "Utility",
+      "name": "Whoogle",
+      "description": "Privacy-respecting metasearch engine",
+      "icon": "it-tools.png"
     }
   ]
 }
