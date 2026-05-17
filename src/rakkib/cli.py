@@ -372,6 +372,61 @@ def _sync_services_to_state_selection(state: State, state_path: Path) -> bool:
     return True
 
 
+def _canonical_exposure_mode(state: State) -> str | None:
+    raw_mode = state.get("exposure_mode")
+    if raw_mode is not None:
+        mode = str(raw_mode).strip().lower()
+        if mode in {"internal", "cloudflare"}:
+            return mode
+    if cloudflare_enabled(state):
+        return "cloudflare"
+    return None
+
+
+def _cleanup_previous_hosting_mode(previous_state: State, new_state: State) -> None:
+    """Remove services rendered for the previous hosting mode before mode switch."""
+    previous_mode = _canonical_exposure_mode(previous_state)
+    new_mode = _canonical_exposure_mode(new_state)
+    if (
+        not previous_state.is_confirmed()
+        or not new_state.is_confirmed()
+        or previous_mode is None
+        or new_mode is None
+        or previous_mode == new_mode
+    ):
+        return
+
+    registry = services_step._load_registry()
+    previous_foundation, previous_selected = _deployed_service_lists(previous_state)
+    previous_ids = set(previous_foundation)
+    previous_ids.update(previous_selected)
+
+    console.print(
+        f"[yellow]Hosting mode changed from {previous_mode} to {new_mode}; removing previously hosted services first.[/yellow]"
+    )
+    with progress_spinner("Removing previous hosting deployment..."):
+        previous_selection_state = State({
+            "foundation_services": previous_foundation,
+            "selected_services": previous_selected,
+        })
+        removal_order = [
+            svc["id"]
+            for svc in reversed(selected_service_defs(previous_selection_state, registry))
+            if svc["id"] in previous_ids
+        ]
+        if previous_mode == "cloudflare":
+            removal_order.extend(["cloudflared", "caddy"])
+
+        for svc_id in dict.fromkeys(removal_order):
+            services_step.remove_single_service(previous_state, svc_id)
+
+    previous_state.set("deployed.exists", False)
+    previous_state.set("deployed.foundation_services", [])
+    previous_state.set("deployed.selected_services", [])
+    previous_state.set("cloudflare.published_services", [])
+    console.print("[green]Previous hosting deployment removed. Run `rakkib pull` to install the new mode.[/green]")
+
+
 def _postgres_sync_needed(registry: dict[str, Any], previous_ids: set[str], desired_ids: set[str]) -> bool:
     """Return true when the selection change affects shared Postgres resources."""
     by_id = {svc["id"]: svc for svc in registry["services"]}
@@ -626,8 +681,10 @@ def init(ctx: click.Context) -> None:
     repo_dir = ctx.obj["repo_dir"]
     state_path = default_state_path(repo_dir)
     state = State.load(state_path)
+    previous_state = State(state.to_dict(), path=state.path)
 
     state = run_interview(state, questions_dir=repo_dir / "data" / "questions")
+    _cleanup_previous_hosting_mode(previous_state, state)
     state.save(state_path)
     console.print("[bold green]Interview complete. State saved to .fss-state.yaml[/bold green]")
 
