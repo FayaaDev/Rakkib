@@ -370,6 +370,36 @@ def _openclaw_paths(home_dir: Path) -> tuple[Path, Path]:
     )
 
 
+def _purge_openclaw_user_artifacts(username: str, home_dir: Path, user_uid: int) -> None:
+    script = r'''
+set +e
+if command -v openclaw >/dev/null 2>&1; then
+  openclaw gateway stop >/dev/null 2>&1 || true
+  openclaw gateway uninstall >/dev/null 2>&1 || true
+fi
+if command -v npm >/dev/null 2>&1; then
+  npm uninstall -g openclaw >/dev/null 2>&1 || true
+  npm_root="$(npm root -g 2>/dev/null || true)"
+  npm_prefix="$(npm prefix -g 2>/dev/null || true)"
+  if [ -n "$npm_root" ]; then
+    rm -rf "$npm_root"/openclaw "$npm_root"/.openclaw-* 2>/dev/null || true
+  fi
+  if [ -n "$npm_prefix" ]; then
+    rm -f "$npm_prefix/bin/openclaw" 2>/dev/null || true
+  fi
+fi
+rm -f "$HOME/.local/bin/openclaw" "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service"
+rm -rf "$HOME/.openclaw" "$HOME/.config/openclaw" "$HOME/.local/share/openclaw" "$HOME/.cache/openclaw" "$HOME/openclaw"
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+'''
+    result = _run_as_user(username, home_dir, user_uid, ["bash", "-lc", script], check=False, timeout=600)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "OpenClaw artifact purge failed. "
+            f"Command output: {result.stdout.strip() or result.stderr.strip()}"
+        )
+
+
 def _openclaw_dashboard_url(state) -> str | None:
     """Return the public dashboard URL with token pre-filled, or None if unavailable."""
     _, home_dir, _ = _service_admin_user(state)
@@ -868,23 +898,25 @@ def openclaw_gateway_restart(ctx: HookContext, *legacy_args) -> None:
 
 
 def openclaw_gateway_uninstall(ctx: HookContext, *legacy_args) -> None:
-    """Purge the managed OpenClaw gateway service while preserving user state."""
+    """Fully remove OpenClaw CLI/package and managed gateway state."""
     ctx = _coerce_hook_context(ctx, *legacy_args)
     openclaw_bin = _resolve_openclaw_bin(ctx.state)
-    if openclaw_bin is None:
-        return
+    if openclaw_bin is not None:
+        uninstall = _run_openclaw(ctx.state, openclaw_bin, ["gateway", "uninstall"], check=False)
+        if uninstall.returncode != 0:
+            output = f"{uninstall.stdout}\n{uninstall.stderr}".lower()
+            if "not installed" not in output and "not found" not in output:
+                raise RuntimeError(
+                    "OpenClaw gateway uninstall failed. "
+                    f"Command output: {uninstall.stdout.strip() or uninstall.stderr.strip()}"
+                )
 
-    uninstall = _run_openclaw(ctx.state, openclaw_bin, ["gateway", "uninstall"], check=False)
-    if uninstall.returncode == 0:
-        return
-
-    output = f"{uninstall.stdout}\n{uninstall.stderr}".lower()
-    if "not installed" in output or "not found" in output:
-        return
-    raise RuntimeError(
-        "OpenClaw gateway uninstall failed. "
-        f"Command output: {uninstall.stdout.strip() or uninstall.stderr.strip()}"
-    )
+    username, home_dir, user_uid = _service_admin_user(ctx.state)
+    _purge_openclaw_user_artifacts(username, home_dir, user_uid)
+    root_config = Path("/root/.openclaw")
+    root_service = Path("/root/.config/systemd/user/openclaw-gateway.service")
+    if username != "root" and (root_config.exists() or root_service.exists()):
+        _purge_openclaw_user_artifacts("root", Path("/root"), 0)
 
 
 POST_RENDER_HOOKS = {
